@@ -1,25 +1,34 @@
-import streamlit as st
-import pandas as pd
-import plotly.express as px
+import time
+from supabase import create_client
 
-# Configuração visual
-st.set_page_config(page_title="Economiza Maricá", page_icon="📍")
+# 1. Configurações do seu banco de dados (Use as mesmas do app.py)
+URL_DB = https://isfnrwxpktsepyebnfiz.supabase.co
+KEY_DB = sb_publishable_ij80OE6wXneFppa17HsoWw_Bi5kMPv1
 
-st.markdown("<h1 style='text-align: center; color: #27ae60;'>📍 Economiza Maricá</h1>", unsafe_allow_html=True)
+# Conecta com o Supabase
+supabase = create_client(URL_DB, KEY_DB)
 
-# Dados de Exemplo para o Teste
-data = {
-    'Produto': ['Alcatra kg', 'Alcatra kg', 'Arroz 5kg', 'Arroz 5kg'],
-    'Mercado': ['Grand Marché', 'Rede Economia', 'Grand Marché', 'Princesa'],
-    'Preço': [37.90, 41.50, 28.50, 26.90],
-    'Bairro': ['Centro', 'Inoã', 'Centro', 'Itaipuaçu'],
-    'Setor': ['Açougue', 'Açougue', 'Mercearia', 'Mercearia']
-}
-df = pd.DataFrame(data)
+def enviar_dados_para_marica(produto, preco, mercado, bairro, setor):
+    """Função para enviar uma oferta para o banco de dados"""
+    dados = {
+        "produto": produto,
+        "preco": preco,
+        "mercado": mercado,
+        "bairro": bairro,
+        "setor": setor
+    }
+    try:
+        supabase.table("ofertas").insert(dados).execute()
+        print(f"✅ Sucesso: {produto} a R$ {preco} no {mercado} ({bairro})")
+    except Exception as e:
+        print(f"❌ Erro ao enviar: {e}")
 
-# Interface
-bairro = st.selectbox("Sua região em Maricá:", ["Centro", "Itaipuaçu", "Inoã"])
-st.write(f"### Melhores ofertas em {bairro}")
-st.dataframe(df[df['Bairro'] == bairro])
+# --- SIMULAÇÃO DA RONDA DO AGENTE ---
+print("🤖 Agente Economiza Maricá a iniciar ronda de preços...")
 
-st.success("App em modo de teste. O Agente de IA está simulando os dados.")
+# Aqui você pode adicionar os preços manualmente para testar o seu app
+enviar_dados_para_marica("Alcatra kg", 36.90, "Grand Marché", "Centro", "Açougue")
+enviar_dados_para_marica("Feijão 1kg", 6.85, "Princesa", "Itaipuaçu", "Mercearia")
+enviar_dados_para_marica("Arroz 5kg", 24.99, "Rede Economia", "Inoã", "Mercearia")
+
+print("\n🚀 Ronda finalizada! Abra o seu link no telemóvel para ver os preços reais.")
