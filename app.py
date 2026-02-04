@@ -2,7 +2,7 @@ import time
 from supabase import create_client
 
 # 1. Configurações do seu banco de dados (Use as mesmas do app.py)
-URL_DB = https://isfnrwxpktsepyebnfiz.supabase.co
+URL_DB = "https://isfnrwxpktsepyebnfiz.supabase.co"
 KEY_DB = sb_publishable_ij80OE6wXneFppa17HsoWw_Bi5kMPv1
 
 # Conecta com o Supabase
@@ -32,3 +32,4 @@ enviar_dados_para_marica("Feijão 1kg", 6.85, "Princesa", "Itaipuaçu", "Mercear
 enviar_dados_para_marica("Arroz 5kg", 24.99, "Rede Economia", "Inoã", "Mercearia")
 
 print("\n🚀 Ronda finalizada! Abra o seu link no telemóvel para ver os preços reais.")
+
