@@ -65,7 +65,8 @@ if not df.empty:
                     col1, col2, col3 = st.columns([3, 2, 1])
                     with col1:
                         st.markdown(f"#### {row['produto']}")
-                        st.caption(f"🏪 {row['mercado']} | 📍 {row['bairro']}, Maricá")
+                        # Esta linha evita que a palavra Maricá se repita
+st.caption(f"🏪 {row['mercado']} | 📍 {row['bairro']}, Maricá - RJ")
                     with col2:
                         st.markdown(f"## {preco_f}")
                     with col3:
@@ -87,6 +88,7 @@ else:
     st.warning("Aguardando o robô...")
 
      
+
 
 
 
