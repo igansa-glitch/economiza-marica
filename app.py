@@ -18,12 +18,22 @@ try:
     df = pd.DataFrame(response.data)
 
     if not df.empty:
-    # Formata a coluna de preço para exibir como dinheiro
-    df['preco'] = df['preco'].apply(lambda x: f"R$ {x:,.2f}".replace('.', ','))
-    
-    st.dataframe(df[['produto', 'preco', 'mercado', 'bairro', 'setor']], use_container_width=True)
+        # --- AJUSTE DE FORMATO ---
+        # Converte o preço para o formato R$ 0,00
+        df['preco_formatado'] = df['preco'].apply(lambda x: f"R$ {x:,.2f}".replace('.', 'X').replace(',', '.').replace('X', ','))
+        
+        # Criar colunas para organizar o visual
+        for index, row in df.iterrows():
+            with st.container():
+                col1, col2, col3 = st.columns([2, 1, 1])
+                with col1:
+                    st.write(f"**{row['produto']}**")
+                with col2:
+                    st.write(f"**{row['preco_formatado']}**")
+                with col3:
+                    st.caption(f"{row['mercado']} ({row['bairro']})")
+                st.divider()
     else:
         st.info("O robô ainda não enviou ofertas hoje. Rode o coletor.py!")
 except Exception as e:
-
     st.error(f"Erro ao conectar com o banco: {e}")
