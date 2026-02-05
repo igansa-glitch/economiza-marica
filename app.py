@@ -78,7 +78,7 @@ if not df.empty:
                         
                         with col_prod:
                             st.markdown(f"#### {row['produto']}")
-                            st.caption(f"🏪 **{row['mercado']}** | 📍 Bairro: {row['bairro']} - Maricá/RJ")
+                            st.caption(f"🏪 **{row['mercado']}** | 📍 {row['bairro']}, Maricá - RJ")
                         
                         with col_info:
                             st.markdown(f"## {preco_formatado}")
@@ -100,4 +100,5 @@ else:
     st.warning("Aguardando o robô coletar os preços...")
 
             
+
 
