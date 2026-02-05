@@ -69,15 +69,25 @@ if not df.empty:
                     with col2:
                         st.markdown(f"## {preco_f}")
                     with col3:
-                        qtd = st.number_input("Qtd", 1, 50, 1, key=f"q_{row['id']}")
-                        if st.button("Add", key=f"b_{row['id']}"):
-                            st.session_state.carrinho.append({"nome": row['produto'], "preco": row['preco'], "qtd": qtd})
+                        # Seletor de quantidade com rótulo em português
+                        qtd = st.number_input("Qtd/Kg", 1, 50, 1, key=f"q_{row['id']}")
+                        
+                        # Botão corrigido para "Adicionar"
+                        if st.button("Adicionar", key=f"b_{row['id']}", use_container_width=True):
+                            st.session_state.carrinho.append({
+                                "nome": row['produto'], 
+                                "preco": row['preco'], 
+                                "qtd": qtd
+                            })
+                            # Mensagem rápida de confirmação na tela
+                            st.toast(f"✅ {row['produto']} adicionado!")
                             st.rerun()
                     st.divider()
 else:
     st.warning("Aguardando o robô...")
 
      
+
 
 
 
