@@ -18,11 +18,12 @@ try:
     df = pd.DataFrame(response.data)
 
     if not df.empty:
-        # Filtros básicos
-        bairro = st.sidebar.selectbox("Escolha o Bairro", df['bairro'].unique())
-        dados_filtrados = df[df['bairro'] == bairro]
-        st.table(dados_filtrados[['produto', 'preco', 'mercado', 'setor']])
+    # Formata a coluna de preço para exibir como dinheiro
+    df['preco'] = df['preco'].apply(lambda x: f"R$ {x:,.2f}".replace('.', ','))
+    
+    st.dataframe(df[['produto', 'preco', 'mercado', 'bairro', 'setor']], use_container_width=True)
     else:
         st.info("O robô ainda não enviou ofertas hoje. Rode o coletor.py!")
 except Exception as e:
+
     st.error(f"Erro ao conectar com o banco: {e}")
