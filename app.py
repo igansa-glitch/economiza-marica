@@ -33,12 +33,36 @@ def carregar_dados():
             df_temp = df_temp.drop_duplicates(subset=['produto', 'mercado', 'preco'], keep='first')
 
             def classificar_setor(row):
-                prod = str(row.get('produto', '')).lower()
-                if any(x in prod for x in ['carne', 'frango', 'alcatra', 'picanha', 'linguiça', 'coxa', 'maminha', 'costela', 'fígado', 'asa', 'sobrecoxa', 'porco', 'bife']): return "Açougue"
-                if any(x in prod for x in ['arroz', 'feijão', 'açúcar', 'óleo', 'macarrão', 'café', 'farinha', 'sal', 'biscoito']): return "Mercearia"
-                if any(x in prod for x in ['leite', 'queijo', 'iogurte', 'manteiga', 'requeijão', 'creme de leite', 'leite condensado']): return "Laticínios"
-                if any(x in prod for x in ['refrigerante', 'cerveja', 'suco', 'vinho', 'água', 'coca', 'fanta', 'skol', 'brahma']): return "Bebidas"
-                if any(x in prod for x in ['sabão', 'detergente', 'amaciante', 'papel', 'desinfetante', 'veja', 'cloro', 'fralda', 'omo']): return "Limpeza"
+                prod = str(row.get('produto', '')).lower().strip()
+                
+                # BEBIDAS (Reforçado para variações de refrigerante)
+                if any(x in prod for x in [
+                    'refrigerante', 'cerveja', 'suco', 'vinho', 'água', 'guaraná', 
+                    'coca', 'fanta', 'skol', 'brahma', 'heineken', 'antarctica', 
+                    'tônica', 'energético', 'latão', 'long neck', '1,5l', '2l', 
+                    'sem açúcar', 'original', 'zero açúcar', 'pet'
+                ]):
+                    # Se for 'original' ou 'sem açúcar', mas tiver 'leite', vai para laticínios
+                    if 'leite' in prod:
+                        return "Laticínios"
+                    return "Bebidas"
+                
+                # AÇOUGUE
+                if any(x in prod for x in ['carne', 'frango', 'alcatra', 'picanha', 'linguiça', 'coxa', 'maminha', 'costela', 'fígado', 'asa', 'sobrecoxa', 'porco', 'lombo', 'bife', 'cupim', 'acém', 'paleta', 'peito', 'moída']):
+                    return "Açougue"
+                
+                # MERCEARIA
+                if any(x in prod for x in ['arroz', 'feijão', 'açúcar', 'óleo', 'macarrão', 'café', 'farinha', 'molho', 'biscoito', 'leite em pó', 'maionese', 'azeite', 'sal', 'extrato', 'espaguete', 'massa', 'tempero', 'milho', 'ervilha']):
+                    return "Mercearia"
+                
+                # LATICÍNIOS / FRIOS
+                if any(x in prod for x in ['leite', 'queijo', 'iogurte', 'manteiga', 'requeijão', 'presunto', 'mussarela', 'mortadela', 'salame', 'danone', 'coalhada', 'creme de leite', 'leite condensado', 'margarina']):
+                    return "Laticínios"
+                
+                # LIMPEZA / HIGIENE
+                if any(x in prod for x in ['sabão', 'detergente', 'amaciante', 'papel', 'desinfetante', 'veja', 'cloro', 'shampoo', 'sabonete', 'pasta', 'creme dental', 'fralda', 'absorvente', 'lysoform', 'omo', 'brilhante', 'limpador']):
+                    return "Limpeza"
+                
                 return "Outros"
 
             df_temp['setor'] = df_temp.apply(classificar_setor, axis=1)
@@ -111,3 +135,4 @@ if not df.empty:
                 st.write("Nenhum item nesta categoria.")
 else:
     st.warning("🤖 Aguardando dados do robô...")
+
