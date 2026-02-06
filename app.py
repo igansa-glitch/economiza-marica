@@ -124,26 +124,32 @@ if not df.empty:
     setores = ["Todos", "Açougue", "Mercearia", "Laticínios", "Bebidas", "Limpeza", "Outros"]
     abas = st.tabs(setores)
 
-    for i, aba in enumerate(abas):
+   for i, aba in enumerate(abas):
         with aba:
             nome_s = setores[i]
             df_s = df_f if nome_s == "Todos" else df_f[df_f['setor'] == nome_s]
             
-            for p in df_s['produto'].unique():
-                ofertas = df_s[df_s['produto'] == p].sort_values(by='preco')
-                with st.container():
-                    st.markdown(f'<div class="card-produto"><span class="nome-prod">{p}</span>', unsafe_allow_html=True)
-                    for _, row in ofertas.iterrows():
-                        col1, col2, col3 = st.columns([2.5, 1.5, 0.5])
-                        with col1:
-                            st.write(f"🏪 **{row['mercado']}**")
-                            st.caption(f"📍 {row['bairro']}")
-                        with col2:
-                            st.markdown(f'<span class="preco-valor">R$ {row["preco"]:,.2f}</span>', unsafe_allow_html=True)
-                        with col3:
-                            if st.button("🛒", key=f"b_{nome_s}_{row['id']}"):
-                                st.session_state.carrinho.append({"nome": row['produto'], "preco": row['preco'], "qtd": 1, "mercado": row['mercado']})
-                                st.rerun()
-                    st.markdown('</div>', unsafe_allow_html=True)
-
-st.markdown('</div>', unsafe_allow_html=True)
+            if not df_s.empty:
+                # Agrupa por produto
+                for p in df_s['produto'].unique():
+                    # --- AQUI ESTÁ A CORREÇÃO ---
+                    # Pegamos as ofertas do produto e removemos mercados repetidos, 
+                    # mantendo apenas o que tiver o menor preço de cada um.
+                    ofertas = df_s[df_s['produto'] == p].sort_values(by='preco')
+                    ofertas_unicas = ofertas.drop_duplicates(subset=['mercado'], keep='first')
+                    
+                    with st.container():
+                        st.markdown(f'<div class="card-produto"><span class="nome-prod">{p}</span>', unsafe_allow_html=True)
+                        
+                        for _, row in ofertas_unicas.iterrows():
+                            col1, col2, col3 = st.columns([2.5, 1.5, 0.5])
+                            with col1:
+                                st.write(f"🏪 **{row['mercado']}**")
+                                st.caption(f"📍 {row['bairro']}")
+                            with col2:
+                                st.markdown(f'<span class="preco-valor">R$ {row["preco"]:,.2f}</span>', unsafe_allow_html=True)
+                            with col3:
+                                if st.button("🛒", key=f"b_{nome_s}_{row['id']}"):
+                                    st.session_state.carrinho.append({"nome": row['produto'], "preco": row['preco'], "qtd": 1, "mercado": row['mercado']})
+                                    st.rerun()
+                        st.markdown('</div>', unsafe_allow_html=True)
