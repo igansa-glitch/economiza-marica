@@ -29,19 +29,18 @@ coordenadas_bairros = {
 if 'carrinho' not in st.session_state:
     st.session_state.carrinho = []
 
-# --- SIDEBAR (GPS E CARRINHO) ---
+# --- SIDEBAR ---
 with st.sidebar:
     st.header("📍 Localização")
-    # Comando JS para pegar o GPS
-    js_gps = "navigator.geolocation.getCurrentPosition(s => {window.parent.postMessage({type:'streamlit:setComponentValue', value:{lat:s.coords.latitude, lon:s.coords.longitude}}, '*')});"
-    loc = st_javascript(js_gps)
+    # Captura GPS de forma segura
+    st_loc = st_javascript("navigator.geolocation.getCurrentPosition(s => {window.parent.postMessage({type:'streamlit:setComponentValue', value:{lat:s.coords.latitude, lon:s.coords.longitude}}, '*')});")
     
     u_lat, u_lon = None, None
-    if isinstance(loc, dict) and 'lat' in loc:
-        u_lat, u_lon = loc['lat'], loc['lon']
+    if isinstance(st_loc, dict) and 'lat' in st_loc:
+        u_lat, u_lon = st_loc['lat'], st_loc['lon']
         st.success("GPS Ativado!")
     else:
-        st.info("Aguardando GPS...")
+        st.info("Ative o GPS para ver distâncias.")
 
     st.divider()
     st.header("🛒 Minha Lista")
@@ -54,7 +53,6 @@ with st.sidebar:
             sub = item['preco'] * item['qtd']
             total += sub
             st.write(f"**{item['qtd']}x** {item['nome']}")
-            st.caption(f"R$ {sub:,.2f} no {item['mercado']}")
             txt_wa += f"• {item['qtd']}x {item['nome']} ({item['mercado']})\n"
             if st.button("Remover", key=f"del_{i}"):
                 st.session_state.carrinho.pop(i)
@@ -96,4 +94,4 @@ if not df.empty:
                     st.session_state.carrinho.append({"nome": row['produto'], "preco": row['preco'], "qtd": 1, "mercado": row['mercado']})
                     st.rerun()
 else:
-    st.warning("Aguardando dados do robô...")
+    st.warning("Aguardando dados do robô... Verifique seu coletor no PC.")
