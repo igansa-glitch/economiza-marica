@@ -17,15 +17,7 @@ if 'carrinho' not in st.session_state:
 # --- ESTILO ---
 st.markdown("""<style>.stButton>button {border-radius: 8px; font-weight: bold; height: 3em;}</style>""", unsafe_allow_html=True)
 
-# --- CARREGAR DADOS ---
-@st.cache_data(ttl=30)
-def carregar_dados():
-    try:
-        res = supabase.table("ofertas").select("*").execute()
-        return pd.DataFrame(res.data)
-    except:
-        return pd.DataFrame()
-
+# --- FUNÇÃO DE CARREGAMENTO COM INTELIGÊNCIA DE SETORES ---
 @st.cache_data(ttl=5)
 def carregar_dados():
     try:
@@ -33,34 +25,64 @@ def carregar_dados():
         df_temp = pd.DataFrame(res.data)
         
         if not df_temp.empty:
-            # --- INTELIGÊNCIA DE SETORES (Caso o robô falhe) ---
             def classificar_setor(row):
-                # Se o setor já estiver preenchido corretamente, mantém
-                if row['setor'] in ["Açougue", "Mercearia", "Laticínios", "Bebidas", "Limpeza"]:
+                # Mantém se já estiver correto
+                if row.get('setor') in ["Açougue", "Mercearia", "Laticínios", "Bebidas", "Limpeza"]:
                     return row['setor']
                 
-                # Caso contrário, tenta adivinhar pelo nome do produto
-                prod = str(row['produto']).lower()
-                if any(x in prod for x in ['carne', 'frango', 'alcatra', 'picanha', 'linguiça', 'coxa', 'maminha']):
+                prod = str(row.get('produto', '')).lower()
+                # Regras de Ouro para Maricá
+                if any(x in prod for x in ['carne', 'frango', 'alcatra', 'picanha', 'linguiça', 'coxa', 'maminha', 'costela', 'fígado']):
                     return "Açougue"
-                if any(x in prod for x in ['arroz', 'feijão', 'açúcar', 'óleo', 'macarrão', 'café', 'farinha']):
+                if any(x in prod for x in ['arroz', 'feijão', 'açúcar', 'óleo', 'macarrão', 'café', 'farinha', 'molho', 'biscoito']):
                     return "Mercearia"
-                if any(x in prod for x in ['leite', 'queijo', 'iogurte', 'manteiga', 'requeijão']):
+                if any(x in prod for x in ['leite', 'queijo', 'iogurte', 'manteiga', 'requeijão', 'presunto', 'mussarela']):
                     return "Laticínios"
-                if any(x in prod for x in ['refrigerante', 'cerveja', 'suco', 'vinho', 'água']):
+                if any(x in prod for x in ['refrigerante', 'cerveja', 'suco', 'vinho', 'água', 'guaraná', 'coca']):
                     return "Bebidas"
-                if any(x in prod for x in ['sabão', 'detergente', 'amaciante', 'papel', 'desinfetante']):
+                if any(x in prod for x in ['sabão', 'detergente', 'amaciante', 'papel', 'desinfetante', 'veja', 'cloro']):
                     return "Limpeza"
                 return "Outros"
 
             df_temp['setor'] = df_temp.apply(classificar_setor, axis=1)
-        return df_temp
+            return df_temp
+        return pd.DataFrame()
     except:
         return pd.DataFrame()
+
+# Tenta carregar os dados
+df = carregar_dados()
+
+# --- BARRA LATERAL ---
+with st.sidebar:
+    st.header("🛒 Minha Lista")
+    if len(st.session_state.carrinho) == 0:
+        st.info("Sua lista está vazia.")
+    else:
+        total_lista = 0
+        texto_whats = "🛒 *Minha Lista - Economiza Maricá*\n\n"
+        for i, item in enumerate(st.session_state.carrinho):
+            subtotal = item['preco'] * item['qtd']
+            total_lista += subtotal
+            st.write(f"**{item['qtd']}x** {item['nome']}")
+            st.caption(f"R$ {subtotal:,.2f} no {item['mercado']}")
+            texto_whats += f"• {item['qtd']}x {item['nome']} ({item['mercado']}) - R$ {subtotal:,.2f}\n"
+            if st.button("Remover", key=f"side_del_{i}"):
+                st.session_state.carrinho.pop(i)
+                st.rerun()
+        
+        st.divider()
+        st.metric("Total Estimado", f"R$ {total_lista:,.2f}")
+        link_wa = f"https://wa.me/?text={urllib.parse.quote(texto_whats + f'\n💰 *Total: R$ {total_lista:,.2f}*')}"
+        st.link_button("📲 Enviar WhatsApp", link_wa, type="primary")
+
+    st.markdown("---")
+    st.warning("🛍️ **Daniparfun.com.br**\nPerfumes árabes em Maricá!")
+
 # --- CONTEÚDO PRINCIPAL ---
 st.title("📍 Economiza Maricá")
 
-if not df.empty:
+if df is not None and not df.empty:
     busca = st.text_input("🔍 O que você procura?", placeholder="Ex: Arroz, Picanha...")
     
     setores = ["Todos", "Açougue", "Mercearia", "Laticínios", "Bebidas", "Limpeza", "Outros"]
@@ -68,19 +90,16 @@ if not df.empty:
 
     for i, nome_setor in enumerate(setores):
         with abas[i]:
-            # Filtro inteligente
             df_setor = df if nome_setor == "Todos" else df[df['setor'] == nome_setor]
             if busca:
                 df_setor = df_setor[df_setor['produto'].str.contains(busca, case=False)]
             
             if not df_setor.empty:
-                # Agrupamento para Comparativo
                 for produto in df_setor['produto'].unique():
                     variacoes = df_setor[df_setor['produto'] == produto].sort_values(by='preco')
                     
                     with st.container(border=True):
                         st.markdown(f"### {produto}")
-                        
                         for _, row in variacoes.iterrows():
                             c1, c2, c3 = st.columns([2.5, 1.5, 1])
                             with c1:
@@ -89,22 +108,16 @@ if not df.empty:
                             with c2:
                                 st.subheader(f"R$ {row['preco']:,.2f}")
                             with c3:
-                                # A CHAVE (KEY) AGORA É ÚNICA POR ABA E POR ID
-                                key_qtd = f"qtd_{nome_setor}_{row['id']}"
-                                key_btn = f"btn_{nome_setor}_{row['id']}"
-                                
-                                qtd = st.number_input("Qtd", 1, 50, 1, key=key_qtd)
-                                if st.button("🛒 Adicionar", key=key_btn):
+                                k_qtd = f"q_{nome_setor}_{row['id']}"
+                                k_btn = f"b_{nome_setor}_{row['id']}"
+                                qtd = st.number_input("Qtd", 1, 50, 1, key=k_qtd)
+                                if st.button("🛒 Adicionar", key=k_btn):
                                     st.session_state.carrinho.append({
-                                        "nome": row['produto'], 
-                                        "preco": row['preco'], 
-                                        "qtd": qtd, 
-                                        "mercado": row['mercado']
+                                        "nome": row['produto'], "preco": row['preco'], 
+                                        "qtd": qtd, "mercado": row['mercado']
                                     })
-                                    st.toast(f"{row['produto']} adicionado!")
                                     st.rerun()
             else:
-                st.write("Nenhum item por aqui.")
+                st.write("Nenhum item encontrado nesta categoria.")
 else:
-    st.warning("🤖 Aguardando dados do robô...")
-
+    st.warning("🤖 Aguardando dados do robô... Deixe o coletor rodando no PC!")
