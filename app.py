@@ -78,7 +78,8 @@ def carregar_dados():
             df_temp['setor'] = df_temp['produto'].apply(categorizar)
             return df_temp
         return pd.DataFrame()
-    except: return pd.DataFrame()
+    except Exception:
+        return pd.DataFrame()
 
 df = carregar_dados()
 
@@ -92,23 +93,75 @@ with st.sidebar:
         texto_wa = "🛒 *Minha Lista - Economiza Maricá*\n\n"
         
         for i, item in enumerate(st.session_state.carrinho):
-            subtotal = item['preco'] * item['qtd']
-            total += subtotal
+            total += item['preco']
             st.write(f"**{item['nome']}**")
             st.caption(f"R$ {item['preco']:.2f} no {item['mercado']}")
             texto_wa += f"• {item['nome']} ({item['mercado']}) - R$ {item['preco']:.2f}\n"
             
-            # BOTÃO DE REMOVER INDIVIDUAL (MANTIDO)
-            if st.button(f"Remover item", key=f"side_del_{i}"):
+            if st.button(f"Remover", key=f"side_del_{i}"):
                 st.session_state.carrinho.pop(i)
                 st.rerun()
         
         st.divider()
         st.metric("Total Estimado", f"R$ {total:,.2f}")
         
-        # BOTÃO ENVIAR WHATSAPP
         link_zap = f"https://wa.me/?text={urllib.parse.quote(texto_wa + f'\n💰 *Total: R$ {total:.2f}*')}"
         st.link_button("📲 Enviar Lista p/ WhatsApp", link_zap, use_container_width=True, type="primary")
         
-        # NOVO BOTÃO: LIMPAR TUDO
-        if st.button("🗑️ Limpar Lista Toda", use_container_width=
+        # LINHA CORRIGIDA AQUI:
+        if st.button("🗑️ Limpar Lista Toda", use_container_width=True):
+            st.session_state.carrinho = []
+            st.rerun()
+    else:
+        st.info("Sua lista está vazia.")
+
+    st.markdown("---")
+    st.header("Anuncie")
+    st.info("Contato Comercial:\n(21) 98288-1425")
+
+st.title("📍 Comparativo Maricá")
+
+c_busca, c_local = st.columns([2, 1])
+with c_busca:
+    busca = st.text_input("🔍 O que você procura?", placeholder="Buscar...")
+with c_local:
+    bairros = ["Todos os Bairros", "Centro", "Itaipuaçu", "Inoã", "São José", "Ponta Negra"]
+    bairro_sel = st.selectbox("📍 Região", bairros)
+
+if not df.empty:
+    df_f = df.copy()
+    if busca:
+        df_f = df_f[df_f['produto'].str.contains(busca, case=False)]
+    
+    if bairro_sel != "Todos os Bairros":
+        df_f = df_f[df_f['bairro'] == bairro_sel]
+
+    setores = ["Todos", "Açougue", "Mercearia", "Laticínios", "Bebidas", "Limpeza", "Outros"]
+    abas = st.tabs(setores)
+
+    for i, aba in enumerate(abas):
+        with aba:
+            nome_s = setores[i]
+            df_s = df_f if nome_s == "Todos" else df_f[df_f['setor'] == nome_s]
+            
+            if not df_s.empty:
+                for p in df_s['produto'].unique():
+                    ofertas = df_s[df_s['produto'] == p].sort_values(by='preco')
+                    ofertas_unicas = ofertas.drop_duplicates(subset=['mercado'], keep='first')
+                    
+                    with st.container():
+                        st.markdown(f'<div class="card-produto"><span class="nome-prod">{p}</span>', unsafe_allow_html=True)
+                        for _, row in ofertas_unicas.iterrows():
+                            col1, col2, col3 = st.columns([2.5, 1.5, 0.5])
+                            with col1:
+                                st.write(f"🏪 **{row['mercado']}**")
+                                st.caption(f"📍 {row['bairro']}")
+                            with col2:
+                                st.markdown(f'<span class="preco-valor">R$ {row["preco"]:,.2f}</span>', unsafe_allow_html=True)
+                            with col3:
+                                if st.button("🛒", key=f"b_{nome_s}_{row['id']}"):
+                                    st.session_state.carrinho.append({"nome": row['produto'], "preco": row['preco'], "qtd": 1, "mercado": row['mercado']})
+                                    st.rerun()
+                        st.markdown('</div>', unsafe_allow_html=True)
+
+st.markdown('</div>', unsafe_allow_html=True)
