@@ -112,35 +112,33 @@ with c_local:
     bairros = ["Todos os Bairros", "Centro", "Itaipuaçu", "Inoã", "São José", "Ponta Negra"]
     bairro_sel = st.selectbox("📍 Região", bairros)
 
+# --- INÍCIO DO BLOCO DE EXIBIÇÃO ---
 if not df.empty:
     df_f = df.copy()
     if busca:
         df_f = df_f[df_f['produto'].str.contains(busca, case=False)]
     
-    # AQUI ESTAVA O SEU ERRO DE INDENTAÇÃO:
     if bairro_sel != "Todos os Bairros":
         df_f = df_f[df_f['bairro'] == bairro_sel]
 
     setores = ["Todos", "Açougue", "Mercearia", "Laticínios", "Bebidas", "Limpeza", "Outros"]
     abas = st.tabs(setores)
 
-   for i, aba in enumerate(abas):
+    # Aqui o alinhamento precisa estar correto (4 espaços para dentro do 'if not df.empty')
+    for i, aba in enumerate(abas):
         with aba:
             nome_s = setores[i]
             df_s = df_f if nome_s == "Todos" else df_f[df_f['setor'] == nome_s]
             
             if not df_s.empty:
-                # Agrupa por produto
+                # Agrupa por produto único
                 for p in df_s['produto'].unique():
-                    # --- AQUI ESTÁ A CORREÇÃO ---
-                    # Pegamos as ofertas do produto e removemos mercados repetidos, 
-                    # mantendo apenas o que tiver o menor preço de cada um.
+                    # FILTRO DE DUPLICADOS: Pega apenas o menor preço de cada mercado
                     ofertas = df_s[df_s['produto'] == p].sort_values(by='preco')
                     ofertas_unicas = ofertas.drop_duplicates(subset=['mercado'], keep='first')
                     
                     with st.container():
                         st.markdown(f'<div class="card-produto"><span class="nome-prod">{p}</span>', unsafe_allow_html=True)
-                        
                         for _, row in ofertas_unicas.iterrows():
                             col1, col2, col3 = st.columns([2.5, 1.5, 0.5])
                             with col1:
@@ -153,3 +151,5 @@ if not df.empty:
                                     st.session_state.carrinho.append({"nome": row['produto'], "preco": row['preco'], "qtd": 1, "mercado": row['mercado']})
                                     st.rerun()
                         st.markdown('</div>', unsafe_allow_html=True)
+
+st.markdown('</div>', unsafe_allow_html=True)
