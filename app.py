@@ -26,34 +26,37 @@ def carregar_dados():
     except:
         return pd.DataFrame()
 
-df = carregar_dados()
-
-# --- BARRA LATERAL ---
-with st.sidebar:
-    st.header("🛒 Minha Lista")
-    if not st.session_state.carrinho:
-        st.info("Sua lista está vazia.")
-    else:
-        total_lista = 0
-        texto_whats = "🛒 *Minha Lista - Economiza Maricá*\n\n"
-        for i, item in enumerate(st.session_state.carrinho):
-            subtotal = item['preco'] * item['qtd']
-            total_lista += subtotal
-            st.write(f"**{item['qtd']}x** {item['nome']}")
-            st.caption(f"R$ {subtotal:,.2f} no {item['mercado']}")
-            texto_whats += f"• {item['qtd']}x {item['nome']} ({item['mercado']}) - R$ {subtotal:,.2f}\n"
-            if st.button("Remover", key=f"sidebar_del_{i}"):
-                st.session_state.carrinho.pop(i)
-                st.rerun()
+@st.cache_data(ttl=5)
+def carregar_dados():
+    try:
+        res = supabase.table("ofertas").select("*").execute()
+        df_temp = pd.DataFrame(res.data)
         
-        st.divider()
-        st.metric("Total Estimado", f"R$ {total_lista:,.2f}")
-        link_wa = f"https://wa.me/?text={urllib.parse.quote(texto_whats + f'\n💰 *Total: R$ {total_lista:,.2f}*')}"
-        st.link_button("📲 Enviar WhatsApp", link_wa, type="primary")
+        if not df_temp.empty:
+            # --- INTELIGÊNCIA DE SETORES (Caso o robô falhe) ---
+            def classificar_setor(row):
+                # Se o setor já estiver preenchido corretamente, mantém
+                if row['setor'] in ["Açougue", "Mercearia", "Laticínios", "Bebidas", "Limpeza"]:
+                    return row['setor']
+                
+                # Caso contrário, tenta adivinhar pelo nome do produto
+                prod = str(row['produto']).lower()
+                if any(x in prod for x in ['carne', 'frango', 'alcatra', 'picanha', 'linguiça', 'coxa', 'maminha']):
+                    return "Açougue"
+                if any(x in prod for x in ['arroz', 'feijão', 'açúcar', 'óleo', 'macarrão', 'café', 'farinha']):
+                    return "Mercearia"
+                if any(x in prod for x in ['leite', 'queijo', 'iogurte', 'manteiga', 'requeijão']):
+                    return "Laticínios"
+                if any(x in prod for x in ['refrigerante', 'cerveja', 'suco', 'vinho', 'água']):
+                    return "Bebidas"
+                if any(x in prod for x in ['sabão', 'detergente', 'amaciante', 'papel', 'desinfetante']):
+                    return "Limpeza"
+                return "Outros"
 
-    st.markdown("---")
-    st.warning("🛍️ **Daniparfun.com.br**\nPerfumes árabes em Maricá!")
-
+            df_temp['setor'] = df_temp.apply(classificar_setor, axis=1)
+        return df_temp
+    except:
+        return pd.DataFrame()
 # --- CONTEÚDO PRINCIPAL ---
 st.title("📍 Economiza Maricá")
 
@@ -104,3 +107,4 @@ if not df.empty:
                 st.write("Nenhum item por aqui.")
 else:
     st.warning("🤖 Aguardando dados do robô...")
+
