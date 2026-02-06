@@ -1,3 +1,7 @@
 supabase
 pandas
 httpx
+streamlit
+pandas
+supabase
+st-javascript
