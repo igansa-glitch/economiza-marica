@@ -13,7 +13,7 @@ st.set_page_config(page_title="Economiza Maricá", layout="wide", page_icon="�
 if 'carrinho' not in st.session_state:
     st.session_state.carrinho = []
 
-# --- ESTILO CSS (Foco em Profissionalismo e Mobile) ---
+# --- ESTILO CSS ---
 st.markdown("""
     <style>
     .stApp {background-color: #f4f7f6;}
@@ -26,19 +26,12 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- FILTRO DE QUALIDADE E SEGURANÇA ---
+# --- FILTRO DE QUALIDADE ---
 def validar_dados(row):
     n = str(row.get('produto', '')).upper().strip()
     m = str(row.get('mercado', '')).upper().strip()
-    
-    # Bloqueia alucinações da IA (Mercado Local, etc)
-    if any(x in m for x in ['LOCAL', 'COMÉRCIO', 'DESCONHECIDO', 'LOJA']):
-        return None
-    
-    # Bloqueia lixo do OCR (Símbolos e nomes curtos)
-    if any(x in n for x in [';', '%', '!', '?', 'ICOA', 'PACV', 'FC1']) or len(n) < 4:
-        return None
-        
+    if any(x in m for x in ['LOCAL', 'COMÉRCIO', 'DESCONHECIDO']): return None
+    if any(x in n for x in [';', '%', '!', 'ICOA', 'PACV']) or len(n) < 4: return None
     return n
 
 # --- CARREGAMENTO ---
@@ -51,18 +44,15 @@ def carregar_dados():
             df_temp['produto_valido'] = df_temp.apply(validar_dados, axis=1)
             df_temp = df_temp.dropna(subset=['produto_valido'])
             df_temp['produto'] = df_temp['produto_valido']
-            
-            # Remove duplicados
             df_temp = df_temp.drop_duplicates(subset=['produto', 'mercado', 'preco'], keep='first')
             
-            # Inteligência de Categorias
             def categorizar(p):
                 p = p.lower()
                 if any(x in p for x in ['arroz', 'feijão', 'óleo', 'açúcar', 'macarrão', 'café', 'dona elza']): return "Mercearia"
-                if any(x in p for x in ['carne', 'frango', 'bife', 'picanha', 'filé', 'linguiça', 'moída']): return "Açougue"
-                if any(x in p for x in ['leite', 'queijo', 'iogurte', 'manteiga', 'requeijão', 'creme de leite']): return "Laticínios"
-                if any(x in p for x in ['cerveja', 'suco', 'refrigerante', 'água', 'coca', 'original', 'açúcar']): return "Bebidas"
-                if any(x in p for x in ['fralda', 'sabão', 'detergente', 'omo', 'papel', 'limpeza']): return "Limpeza"
+                if any(x in p for x in ['carne', 'frango', 'bife', 'picanha', 'filé', 'linguiça']): return "Açougue"
+                if any(x in p for x in ['leite', 'queijo', 'iogurte', 'manteiga', 'requeijão']): return "Laticínios"
+                if any(x in p for x in ['refrigerante', 'cerveja', 'suco', 'água', 'coca', 'original']): return "Bebidas"
+                if any(x in p for x in ['fralda', 'sabão', 'detergente', 'omo', 'papel']): return "Limpeza"
                 return "Outros"
             
             df_temp['setor'] = df_temp['produto'].apply(categorizar)
@@ -72,39 +62,48 @@ def carregar_dados():
 
 df = carregar_dados()
 
-# --- BARRA LATERAL ---
+# --- BARRA LATERAL (CARRINHO DETALHADO + WHATSAPP) ---
 with st.sidebar:
     st.header("🛒 Sua Lista")
     if not st.session_state.carrinho:
         st.info("Lista vazia.")
     else:
-        total = 0
+        total_geral = 0
+        texto_whatsapp = "🛒 *Minha Lista de Compras - Economiza Maricá*\n\n"
+        
         for i, item in enumerate(st.session_state.carrinho):
-            total += item['preco'] * item['qtd']
+            subtotal = item['preco'] * item['qtd']
+            total_geral += subtotal
+            
+            # Mostra os valores individuais
             st.write(f"**{item['qtd']}x** {item['nome']}")
+            st.caption(f"R$ {item['preco']:.2f} cada no {item['mercado']} | Sub: R$ {subtotal:.2f}")
+            
+            # Monta o texto para o WhatsApp
+            texto_whatsapp += f"• {item['qtd']}x {item['nome']} ({item['mercado']}) - R$ {subtotal:.2f}\n"
+            
             if st.button("Remover", key=f"side_del_{i}"):
                 st.session_state.carrinho.pop(i)
                 st.rerun()
+        
         st.divider()
-        st.metric("Total Estimado", f"R$ {total:,.2f}")
-    
+        st.metric("Total Estimado", f"R$ {total_geral:,.2f}")
+        
+        # Botão do WhatsApp para enviar a lista
+        link_wa = f"https://wa.me/?text={urllib.parse.quote(texto_whatsapp + f'\n💰 *Total: R$ {total_geral:.2f}*')}"
+        st.link_button("📲 Enviar Lista p/ WhatsApp", link_wa, type="primary")
+
     st.markdown("---")
     st.markdown(f'<div class="prop-box"><b>ANUNCIE AQUI</b><br>(21) 98288-1425<br>WhatsApp</div>', unsafe_allow_html=True)
 
 # --- CONTEÚDO PRINCIPAL ---
-st.markdown(f"""
-    <div class="prop-box">
-        📢 <b>ESPAÇO DISPONÍVEL PARA ANUNCIANTES</b><br>
-        Contato: (21) 98288-1425<br>
-        <a href="https://wa.me/5521982881425" class="whats-link">Fale conosco no WhatsApp</a>
-    </div>
-    """, unsafe_allow_html=True)
+st.markdown(f'<div class="prop-box">📢 <b>FAÇA SUA PROPAGANDA AQUI</b><br>Contato: (21) 98288-1425<br><a href="https://wa.me/5521982881425" class="whats-link">WhatsApp Comercial</a></div>', unsafe_allow_html=True)
 
 st.title("📍 Economiza Maricá")
 
 c1, c2 = st.columns([2, 1])
 with c1:
-    busca = st.text_input("🔍 O que você procura?", placeholder="Ex: Arroz, Alcatra...")
+    busca = st.text_input("🔍 O que você procura?", placeholder="Ex: Alcatra, Arroz...")
 with c2:
     bairros = ["Todos os Bairros", "Centro", "Itaipuaçu", "Inoã", "São José", "Ponta Negra"]
     bairro_sel = st.selectbox("📍 Filtrar Bairro", bairros)
@@ -116,12 +115,12 @@ if not df.empty:
     if bairro_sel != "Todos os Bairros":
         df_f = df_f[df_f['bairro'] == bairro_sel]
 
-    abas = st.tabs(["Todos", "Açougue", "Mercearia", "Laticínios", "Bebidas", "Limpeza", "Outros"])
-    setores_ref = ["Todos", "Açougue", "Mercearia", "Laticínios", "Bebidas", "Limpeza", "Outros"]
+    setores = ["Todos", "Açougue", "Mercearia", "Laticínios", "Bebidas", "Limpeza", "Outros"]
+    abas = st.tabs(setores)
 
     for i, aba in enumerate(abas):
         with aba:
-            nome_s = setores_ref[i]
+            nome_s = setores[i]
             df_s = df_f if nome_s == "Todos" else df_f[df_f['setor'] == nome_s]
             
             if not df_s.empty:
@@ -132,7 +131,7 @@ if not df.empty:
                         for _, row in ofertas.iterrows():
                             col1, col2, col3, col4 = st.columns([2.5, 1.2, 0.8, 0.5])
                             with col1:
-                                st.markdown(f'<span class="nome-mercado">🏪 {row["mercado"]}</span><br><span style="font-size:0.75em;color:#999;">{row["bairro"]}</span>', unsafe_allow_html=True)
+                                st.write(f"🏪 **{row['mercado']}** ({row['bairro']})")
                             with col2:
                                 st.markdown(f'<span class="preco-valor">R$ {row["preco"]:,.2f}</span>', unsafe_allow_html=True)
                             with col3:
@@ -140,10 +139,9 @@ if not df.empty:
                             with col4:
                                 if st.button("🛒", key=f"b_{nome_s}_{row['id']}"):
                                     st.session_state.carrinho.append({"nome": row['produto'], "preco": row['preco'], "qtd": qtd, "mercado": row['mercado']})
-                                    st.toast(f"{p} adicionado!")
                                     st.rerun()
                         st.markdown('</div>', unsafe_allow_html=True)
             else:
                 st.info(f"Nenhuma oferta em {nome_s}.")
 else:
-    st.warning("🤖 Aguardando novos dados do robô coletor...")
+    st.warning("🤖 Aguardando novos dados...")
