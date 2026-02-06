@@ -3,7 +3,7 @@ import pandas as pd
 from supabase import create_client
 import urllib.parse
 
-# --- CONEXÃO (Mantendo seus dados) ---
+# --- CONEXÃO ---
 URL_DB = "https://isfnrwxpktsepyebnfiz.supabase.co"
 KEY_DB = "sb_publishable_ij80OE6wXneFppa17HsoWw_Bi5kMPv1"
 supabase = create_client(URL_DB, KEY_DB)
@@ -11,7 +11,10 @@ supabase = create_client(URL_DB, KEY_DB)
 # 1. CONFIGURAÇÃO DA PÁGINA
 st.set_page_config(page_title="Economiza Maricá", layout="wide", page_icon="📍")
 
-# 2. JANELA SUPERIOR FIXA (Propaganda Destaque)
+if 'carrinho' not in st.session_state:
+    st.session_state.carrinho = []
+
+# 2. JANELA SUPERIOR FIXA (Estilo que você enviou)
 st.markdown("""
     <style>
     .fixed-header {
@@ -24,64 +27,120 @@ st.markdown("""
         border-bottom: 3px solid #000;
         padding: 10px;
         text-align: center;
+        color: black;
     }
     .main-content {
-        margin-top: 110px; /* Abre espaço para o topo fixo */
+        margin-top: 100px; /* Abre espaço para o topo fixo */
     }
-    .product-row {
-        border-bottom: 1px solid #eee;
-        padding: 8px 0;
-        display: flex;
-        align-items: center;
+    .card-produto {
+        border-left: 5px solid #FFD700;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 12px;
+        background-color: white;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
+    .nome-prod {font-size: 14px !important; font-weight: bold; text-transform: uppercase; color: #333;}
+    .preco-valor {color: green; font-weight: 800; font-size: 1.2em;}
     </style>
     <div class="fixed-header">
         <h2 style='margin:0;'>ANUNCIE AQUI! 📢</h2>
-        <p style='margin:0; font-size: 18px;'>WhatsApp: <b>(21) 982881425</b></p>
+        <p style='margin:0; font-size: 18px;'>WhatsApp: <b>(21) 98288-1425</b></p>
     </div>
 """, unsafe_allow_html=True)
 
-# 3. JANELA LATERAL (Anúncios Secundários)
-with st.sidebar:
-    st.header("Parceiros")
-    st.info("FAÇA SUA PROPAGANDA AQUI!\n\n(21) 982881425")
-    st.divider()
-    # Futuros anúncios podem entrar aqui
+# 3. LIMPEZA DE DADOS (Nossa inteligência atual)
+def validar_dados(row):
+    n = str(row.get('produto', '')).upper().strip()
+    m = str(row.get('mercado', '')).upper().strip()
+    if any(x in m for x in ['LOCAL', 'COMÉRCIO', 'DESCONHECIDO']): return None
+    if any(x in n for x in [';', '%', '!', 'ICOA', 'PACV']) or len(n) < 4: return None
+    return n
 
-# 4. CONTEÚDO PRINCIPAL (Busca de Dados do Supabase)
+@st.cache_data(ttl=5)
+def carregar_dados():
+    try:
+        res = supabase.table("ofertas").select("*").execute()
+        df_temp = pd.DataFrame(res.data)
+        if not df_temp.empty:
+            df_temp['produto_valido'] = df_temp.apply(validar_dados, axis=1)
+            df_temp = df_temp.dropna(subset=['produto_valido'])
+            df_temp['produto'] = df_temp['produto_valido']
+            
+            def categorizar(p):
+                p = p.lower()
+                if any(x in p for x in ['arroz', 'feijão', 'óleo', 'açúcar', 'macarrão', 'café']): return "Mercearia"
+                if any(x in p for x in ['carne', 'frango', 'bife', 'picanha', 'filé']): return "Açougue"
+                if any(x in p for x in ['leite', 'queijo', 'iogurte', 'manteiga']): return "Laticínios"
+                if any(x in p for x in ['refrigerante', 'cerveja', 'suco', 'água', 'coca']): return "Bebidas"
+                if any(x in p for x in ['fralda', 'sabão', 'detergente', 'omo', 'papel']): return "Limpeza"
+                return "Outros"
+            df_temp['setor'] = df_temp['produto'].apply(categorizar)
+            return df_temp
+        return pd.DataFrame()
+    except: return pd.DataFrame()
+
+df = carregar_dados()
+
+# 4. CONTEÚDO PRINCIPAL
 st.markdown('<div class="main-content">', unsafe_allow_html=True)
+
+with st.sidebar:
+    st.header("🛒 Sua Lista")
+    if st.session_state.carrinho:
+        total = sum(item['preco'] * item['qtd'] for item in st.session_state.carrinho)
+        for i, item in enumerate(st.session_state.carrinho):
+            st.write(f"**{item['qtd']}x** {item['nome']}")
+            st.caption(f"R$ {item['preco']:.2f} no {item['mercado']}")
+        st.metric("Total", f"R$ {total:,.2f}")
+        # Link do WhatsApp para a lista toda
+        st.divider()
+    
+    st.header("Parceiros")
+    st.info("FAÇA SUA PROPAGANDA AQUI!\n\n(21) 98288-1425")
 
 st.title("📍 Comparativo de Preços em Maricá")
 
-# Exemplo de consulta ao seu banco (ajuste o nome da tabela conforme sua estrutura)
-try:
-    response = supabase.table("produtos").select("*").execute()
-    dados = response.data
-    
-    if dados:
-        for item in dados:
-            col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
-            
-            with col1:
-                # Nome do produto com fonte menor como você pediu
-                st.markdown(f"<span style='font-size:14px;'><b>{item['nome']}</b></span><br><small>{item.get('mercado', 'Mercado Local')}</small>", unsafe_allow_html=True)
-            
-            with col2:
-                st.markdown(f"<b style='color:green;'>R$ {item['preco']}</b>", unsafe_allow_html=True)
-                
-            with col3:
-                # Aqui você poderá puxar a distância calculada automaticamente
-                st.write(f"📍 {item.get('distancia', 'Calculando...')}")
-                
-            with col4:
-                # Botão de WhatsApp para o usuário compartilhar a lista
-                msg = f"Olha esse preço no Economiza Maricá: {item['nome']} por R${item['preco']}"
-                link_zap = f"https://wa.me/?text={urllib.parse.quote(msg)}"
-                st.markdown(f'<a href="{link_zap}" target="_blank" style="text-decoration:none;"><button style="background-color:#25d366; color:white; border:none; padding:5px 10px; border-radius:5px; width:100%;">WhatsApp</button></a>', unsafe_allow_html=True)
-    else:
-        st.warning("Nenhum produto encontrado no banco de dados.")
+c_busca, c_local = st.columns([2, 1])
+with c_busca:
+    busca = st.text_input("🔍 O que você procura?", placeholder="Ex: Alcatra, Arroz...")
+with c_local:
+    bairros = ["Todos os Bairros", "Centro", "Itaipuaçu", "Inoã", "São José", "Ponta Negra"]
+    bairro_sel = st.selectbox("📍 Região", bairros)
 
-except Exception as e:
-    st.error(f"Erro ao carregar dados: {e}")
+if not df.empty:
+    df_f = df.copy()
+    if busca:
+        df_f = df_f[df_f['produto'].str.contains(busca, case=False)]
+    if bairro_sel != "Todos os Bairros":
+        df_f = df_f[df_f['bairro'] == bairro_sel]
 
+    setores = ["Todos", "Açougue", "Mercearia", "Laticínios", "Bebidas", "Limpeza", "Outros"]
+    abas = st.tabs(setores)
+
+    for i, aba in enumerate(abas):
+        with aba:
+            nome_s = setores[i]
+            df_s = df_f if nome_s == "Todos" else df_f[df_f['setor'] == nome_s]
+            
+            for p in df_s['produto'].unique():
+                ofertas = df_s[df_s['produto'] == p].sort_values(by='preco')
+                with st.container():
+                    st.markdown(f'<div class="card-produto"><span class="nome-prod">{p}</span>', unsafe_allow_html=True)
+                    for _, row in ofertas.iterrows():
+                        col1, col2, col3, col4 = st.columns([2.5, 1.2, 0.8, 0.5])
+                        with col1:
+                            st.write(f"🏪 **{row['mercado']}** ({row['bairro']})")
+                        with col2:
+                            st.markdown(f'<span class="preco-valor">R$ {row["preco"]:,.2f}</span>', unsafe_allow_html=True)
+                        with col3:
+                            # Botão do WhatsApp por ITEM
+                            msg = f"Olha esse preço no Economiza Maricá: {row['produto']} por R$ {row['preco']} no {row['mercado']}"
+                            link_zap = f"https://wa.me/?text={urllib.parse.quote(msg)}"
+                            st.markdown(f'<a href="{link_zap}" target="_blank"><button style="background-color:#25d366; color:white; border:none; border-radius:5px; width:100%;">Zap</button></a>', unsafe_allow_html=True)
+                        with col4:
+                            if st.button("🛒", key=f"b_{nome_s}_{row['id']}"):
+                                st.session_state.carrinho.append({"nome": row['produto'], "preco": row['preco'], "qtd": 1, "mercado": row['mercado']})
+                                st.rerun()
+                    st.markdown('</div>', unsafe_allow_html=True)
 st.markdown('</div>', unsafe_allow_html=True)
