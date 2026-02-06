@@ -18,26 +18,15 @@ if 'carrinho' not in st.session_state:
 st.markdown("""
     <style>
     .fixed-header {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        background-color: #FFD700;
-        z-index: 9999;
-        border-bottom: 3px solid #000;
-        padding: 10px;
-        text-align: center;
-        color: black;
+        position: fixed; top: 0; left: 0; width: 100%;
+        background-color: #FFD700; z-index: 9999;
+        border-bottom: 3px solid #000; padding: 10px;
+        text-align: center; color: black;
     }
-    .main-content {
-        margin-top: 150px;
-    }
+    .main-content { margin-top: 150px; }
     .card-produto {
-        border-left: 5px solid #FFD700;
-        border-radius: 8px;
-        padding: 15px;
-        margin-bottom: 12px;
-        background-color: white;
+        border-left: 5px solid #FFD700; border-radius: 8px;
+        padding: 15px; margin-bottom: 12px; background-color: white;
         box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }
     .nome-prod {font-size: 14px !important; font-weight: bold; text-transform: uppercase; color: #333;}
@@ -49,12 +38,13 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# 3. FILTRO DE QUALIDADE
+# 3. FILTRO DE QUALIDADE (LIMPEZA DE OCR)
 def validar_dados(row):
     n = str(row.get('produto', '')).upper().strip()
     m = str(row.get('mercado', '')).upper().strip()
+    # Bloqueia lixo do OCR e mercados genéricos
     if any(x in m for x in ['LOCAL', 'COMÉRCIO', 'DESCONHECIDO']): return None
-    if any(x in n for x in [';', '%', '!', 'ICOA', 'PACV', 'FC1']) or len(n) < 4: return None
+    if any(x in n for x in [';', '%', '!', 'ICOA', 'PACV', 'FC1', 'MOTROS']) or len(n) < 4: return None
     return n
 
 @st.cache_data(ttl=5)
@@ -66,6 +56,7 @@ def carregar_dados():
             df_temp['produto_valido'] = df_temp.apply(validar_dados, axis=1)
             df_temp = df_temp.dropna(subset=['produto_valido'])
             df_temp['produto'] = df_temp['produto_valido']
+            df_temp = df_temp.drop_duplicates(subset=['produto', 'mercado', 'preco'], keep='first')
             
             def categorizar(p):
                 p = p.lower()
@@ -78,8 +69,7 @@ def carregar_dados():
             df_temp['setor'] = df_temp['produto'].apply(categorizar)
             return df_temp
         return pd.DataFrame()
-    except Exception:
-        return pd.DataFrame()
+    except: return pd.DataFrame()
 
 df = carregar_dados()
 
@@ -91,14 +81,12 @@ with st.sidebar:
     if st.session_state.carrinho:
         total = 0
         texto_wa = "🛒 *Minha Lista - Economiza Maricá*\n\n"
-        
         for i, item in enumerate(st.session_state.carrinho):
             total += item['preco']
             st.write(f"**{item['nome']}**")
             st.caption(f"R$ {item['preco']:.2f} no {item['mercado']}")
             texto_wa += f"• {item['nome']} ({item['mercado']}) - R$ {item['preco']:.2f}\n"
-            
-            if st.button(f"Remover", key=f"side_del_{i}"):
+            if st.button("Remover", key=f"side_del_{i}"):
                 st.session_state.carrinho.pop(i)
                 st.rerun()
         
@@ -108,19 +96,15 @@ with st.sidebar:
         link_zap = f"https://wa.me/?text={urllib.parse.quote(texto_wa + f'\n💰 *Total: R$ {total:.2f}*')}"
         st.link_button("📲 Enviar Lista p/ WhatsApp", link_zap, use_container_width=True, type="primary")
         
-        # LINHA CORRIGIDA AQUI:
         if st.button("🗑️ Limpar Lista Toda", use_container_width=True):
             st.session_state.carrinho = []
             st.rerun()
     else:
         st.info("Sua lista está vazia.")
 
-    st.markdown("---")
-    st.header("Anuncie")
-    st.info("Contato Comercial:\n(21) 98288-1425")
-
 st.title("📍 Comparativo Maricá")
 
+# Filtros e Abas
 c_busca, c_local = st.columns([2, 1])
 with c_busca:
     busca = st.text_input("🔍 O que você procura?", placeholder="Buscar...")
@@ -132,7 +116,6 @@ if not df.empty:
     df_f = df.copy()
     if busca:
         df_f = df_f[df_f['produto'].str.contains(busca, case=False)]
-    
     if bairro_sel != "Todos os Bairros":
         df_f = df_f[df_f['bairro'] == bairro_sel]
 
@@ -143,25 +126,19 @@ if not df.empty:
         with aba:
             nome_s = setores[i]
             df_s = df_f if nome_s == "Todos" else df_f[df_f['setor'] == nome_s]
-            
-            if not df_s.empty:
-                for p in df_s['produto'].unique():
-                    ofertas = df_s[df_s['produto'] == p].sort_values(by='preco')
-                    ofertas_unicas = ofertas.drop_duplicates(subset=['mercado'], keep='first')
-                    
-                    with st.container():
-                        st.markdown(f'<div class="card-produto"><span class="nome-prod">{p}</span>', unsafe_allow_html=True)
-                        for _, row in ofertas_unicas.iterrows():
-                            col1, col2, col3 = st.columns([2.5, 1.5, 0.5])
-                            with col1:
-                                st.write(f"🏪 **{row['mercado']}**")
-                                st.caption(f"📍 {row['bairro']}")
-                            with col2:
-                                st.markdown(f'<span class="preco-valor">R$ {row["preco"]:,.2f}</span>', unsafe_allow_html=True)
-                            with col3:
-                                if st.button("🛒", key=f"b_{nome_s}_{row['id']}"):
-                                    st.session_state.carrinho.append({"nome": row['produto'], "preco": row['preco'], "qtd": 1, "mercado": row['mercado']})
-                                    st.rerun()
-                        st.markdown('</div>', unsafe_allow_html=True)
-
+            for p in df_s['produto'].unique():
+                ofertas = df_s[df_s['produto'] == p].sort_values(by='preco').drop_duplicates(subset=['mercado'])
+                with st.container():
+                    st.markdown(f'<div class="card-produto"><span class="nome-prod">{p}</span>', unsafe_allow_html=True)
+                    for _, row in ofertas.iterrows():
+                        col1, col2, col3 = st.columns([2.5, 1.5, 0.5])
+                        with col1:
+                            st.write(f"🏪 **{row['mercado']}** ({row['bairro']})")
+                        with col2:
+                            st.markdown(f'<span class="preco-valor">R$ {row["preco"]:,.2f}</span>', unsafe_allow_html=True)
+                        with col3:
+                            if st.button("🛒", key=f"b_{nome_s}_{row['id']}"):
+                                st.session_state.carrinho.append({"nome": row['produto'], "preco": row['preco'], "qtd": 1, "mercado": row['mercado']})
+                                st.rerun()
+                    st.markdown('</div>', unsafe_allow_html=True)
 st.markdown('</div>', unsafe_allow_html=True)
