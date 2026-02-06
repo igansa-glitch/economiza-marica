@@ -28,7 +28,7 @@ def carregar_dados():
 
 df = carregar_dados()
 
-# --- BARRA LATERAL (CARRINHO E PROPAGANDA) ---
+# --- BARRA LATERAL ---
 with st.sidebar:
     st.header("🛒 Minha Lista")
     if not st.session_state.carrinho:
@@ -42,7 +42,7 @@ with st.sidebar:
             st.write(f"**{item['qtd']}x** {item['nome']}")
             st.caption(f"R$ {subtotal:,.2f} no {item['mercado']}")
             texto_whats += f"• {item['qtd']}x {item['nome']} ({item['mercado']}) - R$ {subtotal:,.2f}\n"
-            if st.button("Remover", key=f"del_{i}"):
+            if st.button("Remover", key=f"sidebar_del_{i}"):
                 st.session_state.carrinho.pop(i)
                 st.rerun()
         
@@ -58,29 +58,26 @@ with st.sidebar:
 st.title("📍 Economiza Maricá")
 
 if not df.empty:
-    # Busca Geral
     busca = st.text_input("🔍 O que você procura?", placeholder="Ex: Arroz, Picanha...")
     
-    # Abas de Setores
     setores = ["Todos", "Açougue", "Mercearia", "Laticínios", "Bebidas", "Limpeza", "Outros"]
     abas = st.tabs(setores)
 
     for i, nome_setor in enumerate(setores):
         with abas[i]:
-            # Filtragem por busca e setor
+            # Filtro inteligente
             df_setor = df if nome_setor == "Todos" else df[df['setor'] == nome_setor]
             if busca:
                 df_setor = df_setor[df_setor['produto'].str.contains(busca, case=False)]
             
             if not df_setor.empty:
-                # Agrupar para COMPARATIVO DE PREÇOS
+                # Agrupamento para Comparativo
                 for produto in df_setor['produto'].unique():
                     variacoes = df_setor[df_setor['produto'] == produto].sort_values(by='preco')
                     
                     with st.container(border=True):
                         st.markdown(f"### {produto}")
                         
-                        # Lista os mercados que possuem este produto
                         for _, row in variacoes.iterrows():
                             c1, c2, c3 = st.columns([2.5, 1.5, 1])
                             with c1:
@@ -89,17 +86,21 @@ if not df.empty:
                             with c2:
                                 st.subheader(f"R$ {row['preco']:,.2f}")
                             with c3:
-                                qtd = st.number_input("Qtd", 1, 20, 1, key=f"q_{row['id']}")
-                                if st.button("🛒 Adicionar", key=f"btn_{row['id']}"):
+                                # A CHAVE (KEY) AGORA É ÚNICA POR ABA E POR ID
+                                key_qtd = f"qtd_{nome_setor}_{row['id']}"
+                                key_btn = f"btn_{nome_setor}_{row['id']}"
+                                
+                                qtd = st.number_input("Qtd", 1, 50, 1, key=key_qtd)
+                                if st.button("🛒 Adicionar", key=key_btn):
                                     st.session_state.carrinho.append({
                                         "nome": row['produto'], 
                                         "preco": row['preco'], 
                                         "qtd": qtd, 
                                         "mercado": row['mercado']
                                     })
-                                    st.toast("Adicionado!")
+                                    st.toast(f"{row['produto']} adicionado!")
                                     st.rerun()
             else:
-                st.write("Nenhum produto encontrado neste setor.")
+                st.write("Nenhum item por aqui.")
 else:
-    st.warning("🤖 O robô está processando os dados... Volte em instantes!")
+    st.warning("🤖 Aguardando dados do robô...")
