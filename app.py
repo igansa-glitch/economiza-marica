@@ -3,156 +3,127 @@ import pandas as pd
 from supabase import create_client
 import urllib.parse
 
-# --- CONEXÃO COM O BANCO DE DADOS ---
+# --- CONEXÃO ---
 URL_DB = "https://isfnrwxpktsepyebnfiz.supabase.co"
 KEY_DB = "sb_publishable_ij80OE6wXneFppa17HsoWw_Bi5kMPv1"
 supabase = create_client(URL_DB, KEY_DB)
 
 st.set_page_config(page_title="Economiza Maricá", layout="wide", page_icon="📍")
 
-# Inicializa o Carrinho
 if 'carrinho' not in st.session_state:
     st.session_state.carrinho = []
 
-# --- ESTILO CSS (Compacto, Fontes Menores e Profissional) ---
+# --- ESTILO CSS ANALÍTICO (Foco em Dispositivos Móveis) ---
 st.markdown("""
     <style>
-    .stApp {background-color: #f4f7f6;}
-    .prop-box {background-color: #ffffff; padding: 12px; text-align: center; border: 2px dashed #007bff; border-radius: 8px; margin-bottom: 15px; color: #333;}
-    .whats-link {color: #25d366; font-weight: bold; text-decoration: none; font-size: 1.1em;}
-    .card-produto {border-left: 5px solid #007bff; border-radius: 8px; padding: 12px; margin-bottom: 12px; background-color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.05);}
-    .nome-prod {font-size: 0.95em !important; font-weight: bold; color: #333; text-transform: uppercase; margin-bottom: 8px; display: block;}
-    .preco-valor {color: #27ae60; font-weight: 800; font-size: 1.15em;}
-    .nome-mercado {font-weight: 600; color: #555; font-size: 0.9em;}
-    .bairro-info {font-size: 0.8em; color: #888; margin-left: 5px;}
+    .stApp {background-color: #f8f9fa;}
+    /* Propaganda mais compacta */
+    .prop-box {background-color: #ffffff; padding: 8px; text-align: center; border: 2px dashed #007bff; border-radius: 8px; margin-bottom: 10px; font-size: 0.85em;}
+    /* Cards de produto mais finos para caber mais na tela */
+    .card-produto {border-left: 4px solid #007bff; border-radius: 6px; padding: 10px; margin-bottom: 8px; background-color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1);}
+    .nome-prod {font-size: 0.9em !important; font-weight: bold; color: #333; text-transform: uppercase; margin-bottom: 5px; display: block;}
+    .preco-valor {color: #27ae60; font-weight: 800; font-size: 1.1em;}
+    .nome-mercado {font-size: 0.85em; font-weight: 600; color: #444;}
+    /* Ajuste de abas para não quebrar no celular */
+    .stTabs [data-baseweb="tab"] {padding: 10px 12px; font-size: 0.85em;}
     </style>
     """, unsafe_allow_html=True)
 
-# --- FUNÇÃO DE LIMPEZA PESADA (FILTRO ANTI-ERRO) ---
-def limpeza_pesada(nome):
+# --- FILTRO DE QUALIDADE DE DADOS ---
+def validar_produto(nome):
     n = str(nome).upper().strip()
-    
-    # 1. Remove caracteres estranhos do OCR
-    for char in [';', ':', '%', '!', '?', '*', '(', ')', '[', ']', '_', '#', '@']:
-        n = n.replace(char, '')
-    
-    # 2. Ignora nomes muito curtos ou que são apenas números (erros de leitura)
-    if n.isdigit() or len(n) < 4:
+    # Bloqueia lixo comum do OCR
+    bloqueados = [';', ':', '%', '!', '?', 'ICOA', 'PACV', 'FC1', '28,8', '7,99']
+    if any(x in n for x in bloqueados) or len(n) < 4 or n.replace(',','').isdigit():
         return None
-        
-    # 3. Lista de termos que indicam erro de captura (marcas sozinhas ou lixo)
-    termos_bloqueados = ['PROMOCÃO', 'OFERTA', 'CADA', 'UNID', 'PREÇO', 'SADIA', 'PERDIGÃO', '500G', '1KG', 'COA2']
-    if n in termos_bloqueados:
-        return None
-
-    # 4. Correções automáticas de palavras grudadas
-    if 'FILÉEDFRPNGO' in n: return "FILÉ DE FRANGO"
-    if 'BABYSEC' in n: return "FRALDA BABYSEC ULTRA HIPER"
-    
     return n
 
-# --- CARREGAMENTO E CLASSIFICAÇÃO ---
+# --- CARREGAMENTO ---
 @st.cache_data(ttl=5)
 def carregar_dados():
     try:
         res = supabase.table("ofertas").select("*").execute()
         df_temp = pd.DataFrame(res.data)
         if not df_temp.empty:
-            # Aplica a limpeza nos nomes
-            df_temp['produto'] = df_temp['produto'].apply(limpeza_pesada)
-            
-            # Remove o lixo (linhas que ficaram vazias após a limpeza)
+            df_temp['produto'] = df_temp['produto'].apply(validar_produto)
             df_temp = df_temp.dropna(subset=['produto'])
-            
-            # Remove duplicados (mesmo produto, mercado e preço)
             df_temp = df_temp.drop_duplicates(subset=['produto', 'mercado', 'preco'], keep='first')
             
-            # Define o Setor para as abas funcionarem
-            def definir_setor(p):
+            def categorizar(p):
                 p = p.lower()
-                if any(x in p for x in ['carne', 'frango', 'bife', 'picanha', 'linguiça', 'coxa', 'maminha', 'costela', 'filé', 'suíno', 'bovino', 'moída']): return "Açougue"
-                if any(x in p for x in ['arroz', 'feijão', 'açúcar', 'óleo', 'macarrão', 'café', 'farinha', 'sal', 'biscoito', 'molho', 'extrato', 'milho']): return "Mercearia"
-                if any(x in p for x in ['leite', 'queijo', 'iogurte', 'manteiga', 'requeijão', 'presunto', 'mussarela', 'creme de leite', 'leite condensado']): return "Laticínios"
-                if any(x in p for x in ['refrigerante', 'cerveja', 'suco', 'vinho', 'água', 'coca', 'fanta', 'skol', 'brahma', 'heineken']): return "Bebidas"
-                if any(x in p for x in ['sabão', 'detergente', 'amaciante', 'papel', 'desinfetante', 'veja', 'cloro', 'fralda', 'omo', 'shampoo', 'sabonete']): return "Limpeza"
+                if any(x in p for x in ['carne', 'frango', 'bovino', 'picanha', 'filé', 'linguiça']): return "Açougue"
+                if any(x in p for x in ['arroz', 'feijão', 'óleo', 'açúcar', 'macarrão', 'café']): return "Mercearia"
+                if any(x in p for x in ['leite', 'queijo', 'iogurte', 'manteiga', 'requeijão']): return "Laticínios"
+                if any(x in p for x in ['cerveja', 'suco', 'refrigerante', 'água', 'coca']): return "Bebidas"
+                if any(x in p for x in ['fralda', 'sabão', 'detergente', 'omo', 'papel']): return "Limpeza"
                 return "Outros"
             
-            df_temp['setor'] = df_temp['produto'].apply(definir_setor)
+            df_temp['setor'] = df_temp['produto'].apply(categorizar)
             return df_temp
         return pd.DataFrame()
     except: return pd.DataFrame()
 
 df = carregar_dados()
 
-# --- BARRA LATERAL (CARRINHO E PROPAGANDA) ---
+# --- INTERFACE ---
 with st.sidebar:
-    st.header("🛒 Sua Lista")
-    if not st.session_state.carrinho:
-        st.info("Lista vazia.")
-    else:
-        total = 0
+    st.header("🛒 Minha Lista")
+    if st.session_state.carrinho:
+        total = sum(item['preco'] * item['qtd'] for item in st.session_state.carrinho)
         for i, item in enumerate(st.session_state.carrinho):
-            total += item['preco'] * item['qtd']
             st.write(f"**{item['qtd']}x** {item['nome']}")
-            if st.button("Remover", key=f"side_del_{i}"):
+            if st.button("Remover", key=f"s_{i}"):
                 st.session_state.carrinho.pop(i)
                 st.rerun()
-        st.divider()
-        st.metric("Total Estimado", f"R$ {total:,.2f}")
+        st.metric("Total", f"R$ {total:,.2f}")
     
     st.markdown("---")
-    # Janelas de Propaganda Lateral
-    st.markdown(f"""
-        <div class="prop-box">
-            <b>FAÇA SUA PROPAGANDA AQUI</b><br>
-            (21) 98288-1425<br>
-            <span style="color:#25d366; font-size:0.8em;">WhatsApp</span>
-        </div>
-        """, unsafe_allow_html=True)
+    st.markdown(f'<div class="prop-box"><b>ANUNCIE AQUI</b><br>(21) 98288-1425</div>', unsafe_allow_html=True)
 
-# --- CONTEÚDO PRINCIPAL ---
-
-# Propaganda Superior
-st.markdown(f"""
-    <div class="prop-box">
-        📢 <b>FAÇA SUA PROPAGANDA AQUI</b><br>
-        Contato: (21) 98288-1425<br>
-        <a href="https://wa.me/5521982881425" class="whats-link">Clique e Fale no WhatsApp</a>
-    </div>
-    """, unsafe_allow_html=True)
+# Banner Topo
+st.markdown(f'<div class="prop-box">📢 <b>FAÇA SUA PROPAGANDA AQUI</b> - Contato: (21) 98288-1425 (WhatsApp)</div>', unsafe_allow_html=True)
 
 st.title("📍 Economiza Maricá")
 
-# Filtros
-c_busca, c_local = st.columns([2, 1])
-with c_busca:
-    busca = st.text_input("🔍 O que você procura?", placeholder="Ex: Alcatra, Arroz, Leite...")
-with c_local:
+c1, c2 = st.columns([2, 1])
+with c1:
+    busca = st.text_input("🔍 O que você procura?", placeholder="Ex: Arroz...")
+with c2:
     bairros = ["Todos os Bairros", "Centro", "Itaipuaçu", "Inoã", "São José", "Ponta Negra"]
-    bairro_sel = st.selectbox("📍 Região", bairros)
+    b_sel = st.selectbox("📍 Região", bairros)
 
-# Abas e Exibição em Escada
 if not df.empty:
     df_f = df.copy()
     if busca:
         df_f = df_f[df_f['produto'].str.contains(busca, case=False)]
-    if bairro_sel != "Todos os Bairros":
-        df_f = df_f[df_f['bairro'] == bairro_sel]
+    if b_sel != "Todos os Bairros":
+        df_f = df_f[df_f['bairro'] == b_sel]
 
-    setores = ["Todos", "Açougue", "Mercearia", "Laticínios", "Bebidas", "Limpeza", "Outros"]
-    abas = st.tabs(setores)
+    abas = st.tabs(["Todos", "Açougue", "Mercearia", "Laticínios", "Bebidas", "Limpeza", "Outros"])
+    setores_lista = ["Todos", "Açougue", "Mercearia", "Laticínios", "Bebidas", "Limpeza", "Outros"]
 
-    for i, nome_setor in enumerate(setores):
-        with abas[i]:
-            # Filtro real por aba
+    for i, aba in enumerate(abas):
+        with aba:
+            nome_setor = setores_lista[i]
             df_s = df_f if nome_setor == "Todos" else df_f[df_f['setor'] == nome_setor]
             
             if not df_s.empty:
-                # Agrupa por produto para a Escada de Preços
                 for p in df_s['produto'].unique():
                     ofertas = df_s[df_s['produto'] == p].sort_values(by='preco')
-                    
                     with st.container():
                         st.markdown(f'<div class="card-produto"><span class="nome-prod">{p}</span>', unsafe_allow_html=True)
                         for _, row in ofertas.iterrows():
-                            c1, c2
+                            col1, col2, col3, col4 = st.columns([2.5, 1.2, 0.8, 0.5])
+                            with col1:
+                                st.markdown(f'<span class="nome-mercado">🏪 {row["mercado"]}</span><br><span style="font-size:0.75em;color:#999;">{row["bairro"]}</span>', unsafe_allow_html=True)
+                            with col2:
+                                st.markdown(f'<span class="preco-valor">R$ {row["preco"]:,.2f}</span>', unsafe_allow_html=True)
+                            with col3:
+                                qtd = st.number_input("Qtd", 1, 99, 1, key=f"q_{nome_setor}_{row['id']}", label_visibility="collapsed")
+                            with col4:
+                                if st.button("🛒", key=f"b_{nome_setor}_{row['id']}"):
+                                    st.session_state.carrinho.append({"nome": row['produto'], "preco": row['preco'], "qtd": qtd, "mercado": row['mercado']})
+                                    st.rerun()
+                        st.markdown('</div>', unsafe_allow_html=True)
+else:
+    st.warning("🤖 Aguardando conexão com o coletor...")
