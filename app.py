@@ -14,7 +14,7 @@ st.set_page_config(page_title="Economiza Maricá", layout="wide", page_icon="�
 if 'carrinho' not in st.session_state:
     st.session_state.carrinho = []
 
-# 2. JANELA SUPERIOR FIXA (Estilo que você enviou)
+# 2. DESIGN, BANNER FIXO E AJUSTE DE MARGEM
 st.markdown("""
     <style>
     .fixed-header {
@@ -30,31 +30,45 @@ st.markdown("""
         color: black;
     }
     .main-content {
-        margin-top: 100px; /* Abre espaço para o topo fixo */
+        margin-top: 150px; /* Aumentado para o título não sumir atrás do banner */
     }
     .card-produto {
         border-left: 5px solid #FFD700;
         border-radius: 8px;
-        padding: 12px;
+        padding: 15px;
         margin-bottom: 12px;
         background-color: white;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }
     .nome-prod {font-size: 14px !important; font-weight: bold; text-transform: uppercase; color: #333;}
-    .preco-valor {color: green; font-weight: 800; font-size: 1.2em;}
+    .preco-valor {color: #27ae60; font-weight: 800; font-size: 1.25em;}
+    .zap-btn {
+        background-color: #25d366; 
+        color: white; 
+        border: none; 
+        border-radius: 5px; 
+        padding: 5px 12px; 
+        text-decoration: none; 
+        font-size: 11px;
+        font-weight: bold;
+        display: inline-block;
+        text-align: center;
+    }
     </style>
     <div class="fixed-header">
-        <h2 style='margin:0;'>ANUNCIE AQUI! 📢</h2>
-        <p style='margin:0; font-size: 18px;'>WhatsApp: <b>(21) 98288-1425</b></p>
+        <h2 style='margin:0; font-size: 22px;'>ANUNCIE AQUI! 📢</h2>
+        <p style='margin:5px 0 0 0; font-size: 17px;'>WhatsApp: <b>(21) 98288-1425</b></p>
+        <p style='margin:0; font-size: 11px;'>Somente WhatsApp</p>
     </div>
 """, unsafe_allow_html=True)
 
-# 3. LIMPEZA DE DADOS (Nossa inteligência atual)
+# 3. FILTRO DE QUALIDADE (LIMPEZA TOTAL)
 def validar_dados(row):
     n = str(row.get('produto', '')).upper().strip()
     m = str(row.get('mercado', '')).upper().strip()
+    # Bloqueia lixo do OCR e mercados genéricos
     if any(x in m for x in ['LOCAL', 'COMÉRCIO', 'DESCONHECIDO']): return None
-    if any(x in n for x in [';', '%', '!', 'ICOA', 'PACV']) or len(n) < 4: return None
+    if any(x in n for x in [';', '%', '!', 'ICOA', 'PACV', 'FC1', 'MOTROS']) or len(n) < 4: return None
     return n
 
 @st.cache_data(ttl=5)
@@ -66,11 +80,12 @@ def carregar_dados():
             df_temp['produto_valido'] = df_temp.apply(validar_dados, axis=1)
             df_temp = df_temp.dropna(subset=['produto_valido'])
             df_temp['produto'] = df_temp['produto_valido']
+            df_temp = df_temp.drop_duplicates(subset=['produto', 'mercado', 'preco'], keep='first')
             
             def categorizar(p):
                 p = p.lower()
                 if any(x in p for x in ['arroz', 'feijão', 'óleo', 'açúcar', 'macarrão', 'café']): return "Mercearia"
-                if any(x in p for x in ['carne', 'frango', 'bife', 'picanha', 'filé']): return "Açougue"
+                if any(x in p for x in ['carne', 'frango', 'bife', 'picanha', 'filé', 'linguiça']): return "Açougue"
                 if any(x in p for x in ['leite', 'queijo', 'iogurte', 'manteiga']): return "Laticínios"
                 if any(x in p for x in ['refrigerante', 'cerveja', 'suco', 'água', 'coca']): return "Bebidas"
                 if any(x in p for x in ['fralda', 'sabão', 'detergente', 'omo', 'papel']): return "Limpeza"
@@ -86,27 +101,32 @@ df = carregar_dados()
 st.markdown('<div class="main-content">', unsafe_allow_html=True)
 
 with st.sidebar:
-    st.header("🛒 Sua Lista")
+    st.header("🛒 Sua Lista de Feira")
     if st.session_state.carrinho:
         total = sum(item['preco'] * item['qtd'] for item in st.session_state.carrinho)
         for i, item in enumerate(st.session_state.carrinho):
             st.write(f"**{item['qtd']}x** {item['nome']}")
             st.caption(f"R$ {item['preco']:.2f} no {item['mercado']}")
-        st.metric("Total", f"R$ {total:,.2f}")
-        # Link do WhatsApp para a lista toda
+            if st.button("Remover", key=f"side_del_{i}"):
+                st.session_state.carrinho.pop(i)
+                st.rerun()
         st.divider()
+        st.metric("Total Estimado", f"R$ {total:,.2f}")
+    else:
+        st.info("Adicione itens para ver o total da sua compra.")
     
-    st.header("Parceiros")
-    st.info("FAÇA SUA PROPAGANDA AQUI!\n\n(21) 98288-1425")
+    st.markdown("---")
+    st.header("Anuncie Conosco")
+    st.info("Contato Comercial:\n(21) 98288-1425")
 
-st.title("📍 Comparativo de Preços em Maricá")
+st.title("📍 Comparativo Maricá")
 
 c_busca, c_local = st.columns([2, 1])
 with c_busca:
-    busca = st.text_input("🔍 O que você procura?", placeholder="Ex: Alcatra, Arroz...")
+    busca = st.text_input("🔍 O que você procura?", placeholder="Ex: Alcatra, Arroz, Cerveja...")
 with c_local:
     bairros = ["Todos os Bairros", "Centro", "Itaipuaçu", "Inoã", "São José", "Ponta Negra"]
-    bairro_sel = st.selectbox("📍 Região", bairros)
+    bairro_sel = st.selectbox("📍 Filtrar Região", bairros)
 
 if not df.empty:
     df_f = df.copy()
@@ -128,19 +148,21 @@ if not df.empty:
                 with st.container():
                     st.markdown(f'<div class="card-produto"><span class="nome-prod">{p}</span>', unsafe_allow_html=True)
                     for _, row in ofertas.iterrows():
-                        col1, col2, col3, col4 = st.columns([2.5, 1.2, 0.8, 0.5])
+                        col1, col2, col3, col4 = st.columns([2.2, 1.2, 0.8, 0.6])
                         with col1:
-                            st.write(f"🏪 **{row['mercado']}** ({row['bairro']})")
+                            st.write(f"🏪 **{row['mercado']}**")
+                            st.caption(f"📍 {row['bairro']}")
                         with col2:
                             st.markdown(f'<span class="preco-valor">R$ {row["preco"]:,.2f}</span>', unsafe_allow_html=True)
                         with col3:
-                            # Botão do WhatsApp por ITEM
+                            # Compartilhar Item no WhatsApp
                             msg = f"Olha esse preço no Economiza Maricá: {row['produto']} por R$ {row['preco']} no {row['mercado']}"
                             link_zap = f"https://wa.me/?text={urllib.parse.quote(msg)}"
-                            st.markdown(f'<a href="{link_zap}" target="_blank"><button style="background-color:#25d366; color:white; border:none; border-radius:5px; width:100%;">Zap</button></a>', unsafe_allow_html=True)
+                            st.markdown(f'<a href="{link_zap}" target="_blank" class="zap-btn">ZAP</a>', unsafe_allow_html=True)
                         with col4:
                             if st.button("🛒", key=f"b_{nome_s}_{row['id']}"):
                                 st.session_state.carrinho.append({"nome": row['produto'], "preco": row['preco'], "qtd": 1, "mercado": row['mercado']})
                                 st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
+
 st.markdown('</div>', unsafe_allow_html=True)
