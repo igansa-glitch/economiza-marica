@@ -86,70 +86,29 @@ df = carregar_dados()
 st.markdown('<div class="main-content">', unsafe_allow_html=True)
 
 with st.sidebar:
-    st.header("🛒 Sua Lista de Compras")
+    st.header("🛒 Sua Lista")
     if st.session_state.carrinho:
-        total = sum(item['preco'] * item['qtd'] for item in st.session_state.carrinho)
+        total = 0
         texto_wa = "🛒 *Minha Lista - Economiza Maricá*\n\n"
+        
         for i, item in enumerate(st.session_state.carrinho):
-            st.write(f"**{item['qtd']}x** {item['nome']}")
-            texto_wa += f"• {item['qtd']}x {item['nome']} ({item['mercado']})\n"
-            if st.button("Remover", key=f"side_del_{i}"):
+            subtotal = item['preco'] * item['qtd']
+            total += subtotal
+            st.write(f"**{item['nome']}**")
+            st.caption(f"R$ {item['preco']:.2f} no {item['mercado']}")
+            texto_wa += f"• {item['nome']} ({item['mercado']}) - R$ {item['preco']:.2f}\n"
+            
+            # BOTÃO DE REMOVER INDIVIDUAL (MANTIDO)
+            if st.button(f"Remover item", key=f"side_del_{i}"):
                 st.session_state.carrinho.pop(i)
                 st.rerun()
+        
         st.divider()
         st.metric("Total Estimado", f"R$ {total:,.2f}")
-        link_zap = f"https://wa.me/?text={urllib.parse.quote(texto_wa + f'Total: R$ {total:.2f}')}"
+        
+        # BOTÃO ENVIAR WHATSAPP
+        link_zap = f"https://wa.me/?text={urllib.parse.quote(texto_wa + f'\n💰 *Total: R$ {total:.2f}*')}"
         st.link_button("📲 Enviar Lista p/ WhatsApp", link_zap, use_container_width=True, type="primary")
-    else:
-        st.info("Lista vazia.")
-
-st.title("📍 Comparativo Maricá")
-
-c_busca, c_local = st.columns([2, 1])
-with c_busca:
-    busca = st.text_input("🔍 O que você procura?", placeholder="Buscar...")
-with c_local:
-    bairros = ["Todos os Bairros", "Centro", "Itaipuaçu", "Inoã", "São José", "Ponta Negra"]
-    bairro_sel = st.selectbox("📍 Região", bairros)
-
-# --- INÍCIO DO BLOCO DE EXIBIÇÃO ---
-if not df.empty:
-    df_f = df.copy()
-    if busca:
-        df_f = df_f[df_f['produto'].str.contains(busca, case=False)]
-    
-    if bairro_sel != "Todos os Bairros":
-        df_f = df_f[df_f['bairro'] == bairro_sel]
-
-    setores = ["Todos", "Açougue", "Mercearia", "Laticínios", "Bebidas", "Limpeza", "Outros"]
-    abas = st.tabs(setores)
-
-    # Aqui o alinhamento precisa estar correto (4 espaços para dentro do 'if not df.empty')
-    for i, aba in enumerate(abas):
-        with aba:
-            nome_s = setores[i]
-            df_s = df_f if nome_s == "Todos" else df_f[df_f['setor'] == nome_s]
-            
-            if not df_s.empty:
-                # Agrupa por produto único
-                for p in df_s['produto'].unique():
-                    # FILTRO DE DUPLICADOS: Pega apenas o menor preço de cada mercado
-                    ofertas = df_s[df_s['produto'] == p].sort_values(by='preco')
-                    ofertas_unicas = ofertas.drop_duplicates(subset=['mercado'], keep='first')
-                    
-                    with st.container():
-                        st.markdown(f'<div class="card-produto"><span class="nome-prod">{p}</span>', unsafe_allow_html=True)
-                        for _, row in ofertas_unicas.iterrows():
-                            col1, col2, col3 = st.columns([2.5, 1.5, 0.5])
-                            with col1:
-                                st.write(f"🏪 **{row['mercado']}**")
-                                st.caption(f"📍 {row['bairro']}")
-                            with col2:
-                                st.markdown(f'<span class="preco-valor">R$ {row["preco"]:,.2f}</span>', unsafe_allow_html=True)
-                            with col3:
-                                if st.button("🛒", key=f"b_{nome_s}_{row['id']}"):
-                                    st.session_state.carrinho.append({"nome": row['produto'], "preco": row['preco'], "qtd": 1, "mercado": row['mercado']})
-                                    st.rerun()
-                        st.markdown('</div>', unsafe_allow_html=True)
-
-st.markdown('</div>', unsafe_allow_html=True)
+        
+        # NOVO BOTÃO: LIMPAR TUDO
+        if st.button("🗑️ Limpar Lista Toda", use_container_width=
