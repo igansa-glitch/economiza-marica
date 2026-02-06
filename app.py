@@ -71,31 +71,37 @@ with st.sidebar:
 if not df.empty:
     tab_promo, tab_setores = st.tabs(["🔥 SUPER OFERTAS", "📦 TODOS OS PRODUTOS"])
 
-    # ABA 1: SUPER OFERTAS (Lógica de Desconto)
+   # ABA 1: SUPER OFERTAS (Lógica de Comparação Real)
     with tab_promo:
-        st.markdown("#### Melhores oportunidades de hoje")
-        # Calcula média para destacar o que está barato
-        df['preco_medio'] = df.groupby('produto')['preco'].transform('mean')
-        df['desconto'] = (df['preco_medio'] - df['preco']) / df['preco_medio']
+        st.markdown("#### 🔥 Onde você economiza de verdade")
         
-        # Filtra ofertas reais (mais de 10% de economia comparado à média)
-        promos = df[df['desconto'] > 0.10].sort_values(by='desconto', ascending=False)
+        # Só calculamos economia se o produto existir em mais de um lugar
+        contagem_produtos = df.groupby('produto')['mercado'].transform('count')
+        df_comparavel = df[contagem_produtos > 1].copy()
+        
+        if not df_comparavel.empty:
+            df_comparavel['preco_max'] = df_comparavel.groupby('produto')['preco'].transform('max')
+            df_comparavel['economia_real'] = (df_comparavel['preco_max'] - df_comparavel['preco']) / df_comparavel['preco_max']
+            
+            # Filtra onde a diferença é maior que zero (o mais barato de todos)
+            melhores_precos = df_comparavel[df_comparavel['economia_real'] > 0].sort_values(by='economia_real', ascending=False)
 
-        if not promos.empty:
-            cols = st.columns(3)
-            for idx, row in promos.head(6).iterrows():
-                with cols[idx % 3]:
-                    with st.container(border=True):
-                        st.error(f"Economia de {row['desconto']*100:.0f}%")
-                        st.write(f"**{row['produto']}**")
-                        st.subheader(f"R$ {row['preco']:,.2f}")
-                        st.caption(f"🏪 {row['mercado']}")
-                        if st.button("Adicionar", key=f"p_{row['id']}"):
-                            st.session_state.carrinho.append({"nome": row['produto'], "preco": row['preco'], "qtd": 1, "mercado": row['mercado']})
-                            st.rerun()
+            if not melhores_precos.empty:
+                cols = st.columns(3)
+                for idx, row in melhores_precos.head(6).iterrows():
+                    with cols[idx % 3]:
+                        with st.container(border=True):
+                            st.error(f"📉 {row['economia_real']*100:.0f}% MAIS BARATO")
+                            st.write(f"**{row['produto']}**")
+                            st.subheader(f"R$ {row['preco']:,.2f}")
+                            st.caption(f"🏪 No {row['mercado']} vs outros")
+                            if st.button("Adicionar", key=f"promo_{row['id']}"):
+                                st.session_state.carrinho.append({"nome": row['produto'], "preco": row['preco'], "qtd": 1, "mercado": row['mercado']})
+                                st.rerun()
+            else:
+                st.info("💡 Dica: Adicione mais encartes! Quando dois mercados tiverem o mesmo item, eu te aviso qual é o mais barato aqui.")
         else:
-            st.info("O robô ainda está analisando as melhores ofertas...")
-
+            st.info("🧐 O robô está analisando os outros mercados. Assim que eu encontrar o mesmo produto em dois lugares, calcularei a economia para você!")
     # ABA 2: TODOS OS PRODUTOS (Layout Original)
     with tab_setores:
         busca = st.text_input("🔍 O que você procura?", placeholder="Ex: Alcatra, Feijão...")
@@ -129,3 +135,4 @@ else:
 
 st.markdown("---")
 st.caption("📍 Economiza Maricá - 2026 | Orgulhosamente servindo nossa cidade.")
+
