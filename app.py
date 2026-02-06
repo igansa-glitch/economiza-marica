@@ -42,16 +42,6 @@ st.markdown("""
     }
     .nome-prod {font-size: 14px !important; font-weight: bold; text-transform: uppercase; color: #333;}
     .preco-valor {color: #27ae60; font-weight: 800; font-size: 1.25em;}
-    .zap-btn-item {
-        background-color: #25d366; 
-        color: white; 
-        border-radius: 5px; 
-        padding: 5px 10px; 
-        text-decoration: none; 
-        font-size: 10px;
-        font-weight: bold;
-        display: inline-block;
-    }
     </style>
     <div class="fixed-header">
         <h2 style='margin:0; font-size: 20px;'>ANUNCIE AQUI! 📢</h2>
@@ -95,7 +85,7 @@ df = carregar_dados()
 # 4. CONTEÚDO PRINCIPAL
 st.markdown('<div class="main-content">', unsafe_allow_html=True)
 
-# BARRA LATERAL (ONDE ESTAVA O ERRO)
+# BARRA LATERAL (Carrinho e Botão de Envio)
 with st.sidebar:
     st.header("🛒 Sua Lista de Compras")
     
@@ -103,7 +93,6 @@ with st.sidebar:
         total = 0
         texto_wa = "🛒 *Lista de Compras - Economiza Maricá*\n\n"
         
-        # Lista os produtos
         for i, item in enumerate(st.session_state.carrinho):
             sub = item['preco'] * item['qtd']
             total += sub
@@ -118,7 +107,6 @@ with st.sidebar:
         st.divider()
         st.metric("Total Estimado", f"R$ {total:,.2f}")
         
-        # BOTÃO DO WHATSAPP - EMBAIXO DA LISTA
         texto_wa += f"\n💰 *Total: R$ {total:.2f}*"
         link_zap = f"https://wa.me/?text={urllib.parse.quote(texto_wa)}"
         
@@ -128,7 +116,7 @@ with st.sidebar:
             st.session_state.carrinho = []
             st.rerun()
     else:
-        st.info("Sua lista está vazia. Adicione produtos clicando no 🛒")
+        st.info("Sua lista está vazia.")
 
     st.markdown("---")
     st.header("Anuncie")
@@ -136,7 +124,6 @@ with st.sidebar:
 
 st.title("📍 Comparativo Maricá")
 
-# Filtros e Abas...
 c_busca, c_local = st.columns([2, 1])
 with c_busca:
     busca = st.text_input("🔍 O que você procura?", placeholder="Buscar...")
@@ -149,33 +136,3 @@ if not df.empty:
     if busca:
         df_f = df_f[df_f['produto'].str.contains(busca, case=False)]
     if bairro_sel != "Todos os Bairros":
-        df_f = df_f[df_f['bairro'] == bairro_sel]
-
-    setores = ["Todos", "Açougue", "Mercearia", "Laticínios", "Bebidas", "Limpeza", "Outros"]
-    abas = st.tabs(setores)
-
-    for i, aba in enumerate(abas):
-        with aba:
-            nome_s = setores[i]
-            df_s = df_f if nome_s == "Todos" else df_f[df_f['setor'] == nome_s]
-            
-            for p in df_s['produto'].unique():
-                ofertas = df_s[df_s['produto'] == p].sort_values(by='preco')
-                with st.container():
-                    st.markdown(f'<div class="card-produto"><span class="nome-prod">{p}</span>', unsafe_allow_html=True)
-                    for _, row in ofertas.iterrows():
-                        col1, col2, col3, col4 = st.columns([2, 1.2, 0.8, 0.6])
-                        with col1:
-                            st.write(f"🏪 **{row['mercado']}**")
-                        with col2:
-                            st.markdown(f'<span class="preco-valor">R$ {row["preco"]:,.2f}</span>', unsafe_allow_html=True)
-                        with col3:
-                            msg_item = f"Olha esse preço: {row['produto']} por R$ {row['preco']} no {row['mercado']}"
-                            st.markdown(f'<a href="https://wa.me/?text={urllib.parse.quote(msg_item)}" target="_blank" class="zap-btn-item">ZAP</a>', unsafe_allow_html=True)
-                        with col4:
-                            if st.button("🛒", key=f"b_{nome_s}_{row['id']}"):
-                                st.session_state.carrinho.append({"nome": row['produto'], "preco": row['preco'], "qtd": 1, "mercado": row['mercado']})
-                                st.rerun()
-                    st.markdown('</div>', unsafe_allow_html=True)
-
-st.markdown('</div>', unsafe_allow_html=True)
