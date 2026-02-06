@@ -16,7 +16,7 @@ if 'carrinho' not in st.session_state:
 # --- ESTILO ---
 st.markdown("""<style>.stButton>button {border-radius: 8px; font-weight: bold; background-color: #28a745; color: white;}</style>""", unsafe_allow_html=True)
 
-# --- CARREGAMENTO E LIMPEZA TURBO ---
+# --- CARREGAMENTO E CLASSIFICAÇÃO ---
 @st.cache_data(ttl=5)
 def carregar_dados():
     try:
@@ -24,59 +24,60 @@ def carregar_dados():
         df_temp = pd.DataFrame(res.data)
         
         if not df_temp.empty:
-            # 1. Filtro de Lixo: Remove linhas onde o produto ou mercado são apenas ruído
+            # Limpeza de lixo visual
             lixo = ['promoção', 'cada', 'unidade', 'unid', 'un', 'kg', 'g', ';', ':', 'promocão']
             df_temp = df_temp[~df_temp['produto'].str.lower().isin(lixo)]
-            df_temp = df_temp[~df_temp['mercado'].str.lower().isin(lixo)]
             
-            # 2. Remove Duplicados (Mesmo preço no mesmo mercado)
+            # Remove duplicados
             df_temp = df_temp.drop_duplicates(subset=['produto', 'mercado', 'preco'], keep='first')
 
             def classificar_setor(row):
-                prod = str(row.get('produto', '')).lower().strip()
+                prod = str(row.get('produto', '')).lower()
                 
-                # BEBIDAS (Reforçado para variações de refrigerante)
-                if any(x in prod for x in [
-                    'refrigerante', 'cerveja', 'suco', 'vinho', 'água', 'guaraná', 
-                    'coca', 'fanta', 'skol', 'brahma', 'heineken', 'antarctica', 
-                    'tônica', 'energético', 'latão', 'long neck', '1,5l', '2l', 
-                    'sem açúcar', 'original', 'zero açúcar', 'pet'
-                ]):
-                    # Se for 'original' ou 'sem açúcar', mas tiver 'leite', vai para laticínios
-                    if 'leite' in prod:
-                        return "Laticínios"
+                # MERCEARIA (Prioridade para tirar o Óleo das Bebidas)
+                if any(x in prod for x in ['óleo', 'soja', 'arroz', 'feijão', 'açúcar', 'macarrão', 'café', 'farinha', 'sal', 'biscoito', 'molho', 'extrato']):
+                    return "Mercearia"
+                
+                # BEBIDAS (Refinado)
+                if any(x in prod for x in ['refrigerante', 'cerveja', 'suco', 'vinho', 'água', 'coca', 'fanta', 'skol', 'brahma', 'heineken', 'guaraná', 'antarctica', 'original', 'sem açúcar', '1,5l', '2l', 'litro']):
                     return "Bebidas"
                 
                 # AÇOUGUE
-                if any(x in prod for x in ['carne', 'frango', 'alcatra', 'picanha', 'linguiça', 'coxa', 'maminha', 'costela', 'fígado', 'asa', 'sobrecoxa', 'porco', 'lombo', 'bife', 'cupim', 'acém', 'paleta', 'peito', 'moída']):
+                if any(x in prod for x in ['carne', 'frango', 'alcatra', 'picanha', 'linguiça', 'coxa', 'maminha', 'costela', 'fígado', 'asa', 'sobrecoxa', 'porco', 'bife']):
                     return "Açougue"
                 
-                # MERCEARIA
-                if any(x in prod for x in ['arroz', 'feijão', 'açúcar', 'óleo', 'macarrão', 'café', 'farinha', 'molho', 'biscoito', 'leite em pó', 'maionese', 'azeite', 'sal', 'extrato', 'espaguete', 'massa', 'tempero', 'milho', 'ervilha']):
-                    return "Mercearia"
-                
-                # LATICÍNIOS / FRIOS
-                if any(x in prod for x in ['leite', 'queijo', 'iogurte', 'manteiga', 'requeijão', 'presunto', 'mussarela', 'mortadela', 'salame', 'danone', 'coalhada', 'creme de leite', 'leite condensado', 'margarina']):
+                # LATICÍNIOS
+                if any(x in prod for x in ['leite', 'queijo', 'iogurte', 'manteiga', 'requeijão', 'creme de leite', 'leite condensado', 'margarina', 'presunto', 'mussarela']):
                     return "Laticínios"
                 
-                # LIMPEZA / HIGIENE
-                if any(x in prod for x in ['sabão', 'detergente', 'amaciante', 'papel', 'desinfetante', 'veja', 'cloro', 'shampoo', 'sabonete', 'pasta', 'creme dental', 'fralda', 'absorvente', 'lysoform', 'omo', 'brilhante', 'limpador']):
+                # LIMPEZA
+                if any(x in prod for x in ['sabão', 'detergente', 'amaciante', 'papel', 'desinfetante', 'veja', 'cloro', 'fralda', 'omo', 'brilhante', 'shampoo']):
                     return "Limpeza"
                 
                 return "Outros"
 
             df_temp['setor'] = df_temp.apply(classificar_setor, axis=1)
+            
+            # Ajuste de nomes incompletos (Trata o "original/sem açúcar")
+            def ajustar_nome(nome):
+                n = nome.lower()
+                if "original" in n and "açúcar" in n and len(n) < 30:
+                    return "Refrigerante Coca-Cola 1,5L (Variações)"
+                return nome
+            
+            df_temp['produto'] = df_temp['produto'].apply(ajustar_nome)
+            
             return df_temp
         return pd.DataFrame()
     except: return pd.DataFrame()
 
 df = carregar_dados()
 
-# --- BARRA LATERAL (CARRINHO E PROPAGANDAS) ---
+# --- BARRA LATERAL ---
 with st.sidebar:
     st.header("🛒 Minha Lista")
     if not st.session_state.carrinho:
-        st.write("Sua lista está vazia.")
+        st.write("Vazia")
     else:
         total = 0
         txt_wa = "🛒 *Minha Lista - Economiza Maricá*\n\n"
@@ -84,37 +85,35 @@ with st.sidebar:
             sub = item['preco'] * item['qtd']
             total += sub
             st.write(f"**{item['qtd']}x** {item['nome']}")
-            st.caption(f"R$ {sub:,.2f} no {item['mercado']}")
             txt_wa += f"• {item['qtd']}x {item['nome']} ({item['mercado']}) - R$ {sub:,.2f}\n"
             if st.button("❌", key=f"del_{i}"):
                 st.session_state.carrinho.pop(i)
                 st.rerun()
         st.divider()
-        st.metric("Total Estimado", f"R$ {total:,.2f}")
-        link_wa = f"https://wa.me/?text={urllib.parse.quote(txt_wa + f'\n💰 *Total: R$ {total:,.2f}*')}"
-        st.link_button("📲 Enviar WhatsApp", link_wa)
+        st.metric("Total", f"R$ {total:,.2f}")
+        st.link_button("📲 Enviar WhatsApp", f"https://wa.me/?text={urllib.parse.quote(txt_wa + f'\n💰 *Total: R$ {total:,.2f}*')}")
 
     st.markdown("---")
-    # ESPAÇO PARA PROPAGANDA
     st.image("https://via.placeholder.com/300x150.png?text=DANIPARFUN+PERFUMES", use_container_width=True)
-    st.warning("🛍️ **Daniparfun.com.br**\nPerfumes árabes em Maricá com preços imbatíveis!")
-    st.info("📢 **Anuncie aqui!**\nSua marca no maior comparador de preços da cidade.")
+    st.warning("🛍️ **Daniparfun.com.br**\nPerfumes árabes em Maricá!")
 
 # --- CONTEÚDO PRINCIPAL ---
 st.title("📍 Economiza Maricá")
 
 if not df.empty:
+    busca = st.text_input("🔍 Procure um produto...", placeholder="Ex: Alcatra, Cerveja, Arroz...")
     setores = ["Todos", "Açougue", "Mercearia", "Laticínios", "Bebidas", "Limpeza", "Outros"]
     abas = st.tabs(setores)
 
     for i, nome_setor in enumerate(setores):
         with abas[i]:
             df_s = df if nome_setor == "Todos" else df[df['setor'] == nome_setor]
+            if busca:
+                df_s = df_s[df_s['produto'].str.contains(busca, case=False)]
             
             if not df_s.empty:
                 for prod_nome in df_s['produto'].unique():
                     variacoes = df_s[df_s['produto'] == prod_nome].sort_values(by='preco')
-                    
                     with st.container(border=True):
                         st.markdown(f"### {prod_nome}")
                         for _, row in variacoes.iterrows():
@@ -132,7 +131,7 @@ if not df.empty:
                                     st.session_state.carrinho.append({"nome": row['produto'], "preco": row['preco'], "qtd": qtd, "mercado": row['mercado']})
                                     st.rerun()
             else:
-                st.write("Nenhum item nesta categoria.")
+                st.write("Nenhum item aqui.")
 else:
-    st.warning("🤖 Aguardando dados do robô...")
-
+    st.warning("🤖 Aguardando novos dados do robô...")
+    
