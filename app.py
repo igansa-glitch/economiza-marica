@@ -38,6 +38,24 @@ def validar_produto(nome):
         return None
     return n
 
+# --- FILTRO DE QUALIDADE DE DADOS (REFORÇADO) ---
+def validar_entrada(row):
+    # 1. Limpeza do Nome do Produto
+    n = str(row.get('produto', '')).upper().strip()
+    mercado = str(row.get('mercado', '')).upper().strip()
+    
+    # Bloqueia "Mercado Local" ou nomes genéricos que a IA inventa
+    mercados_bloqueados = ['MERCADO LOCAL', 'LOCAL', 'COMÉRCIO', 'LOJA']
+    if any(m in mercado for m in mercados_bloqueados):
+        return None
+    
+    # Bloqueia lixo comum do OCR no nome do produto
+    bloqueados_prod = [';', ':', '%', '!', '?', 'ICOA', 'PACV', 'FC1', '28,8', '7,99']
+    if any(x in n for x in bloqueados_prod) or len(n) < 4 or n.replace(',','').isdigit():
+        return None
+        
+    return n
+
 # --- CARREGAMENTO ---
 @st.cache_data(ttl=5)
 def carregar_dados():
@@ -45,16 +63,23 @@ def carregar_dados():
         res = supabase.table("ofertas").select("*").execute()
         df_temp = pd.DataFrame(res.data)
         if not df_temp.empty:
-            df_temp['produto'] = df_temp['produto'].apply(validar_produto)
-            df_temp = df_temp.dropna(subset=['produto'])
+            # Aplica a validação cruzada (Produto + Mercado)
+            df_temp['produto_limpo'] = df_temp.apply(validar_entrada, axis=1)
+            
+            # Remove o que foi invalidado
+            df_temp = df_temp.dropna(subset=['produto_limpo'])
+            df_temp['produto'] = df_temp['produto_limpo']
+            
+            # Remove duplicados
             df_temp = df_temp.drop_duplicates(subset=['produto', 'mercado', 'preco'], keep='first')
             
             def categorizar(p):
                 p = p.lower()
-                if any(x in p for x in ['carne', 'frango', 'bovino', 'picanha', 'filé', 'linguiça']): return "Açougue"
-                if any(x in p for x in ['arroz', 'feijão', 'óleo', 'açúcar', 'macarrão', 'café']): return "Mercearia"
+                # Mercearia Reforçada (Arroz, Feijão, etc)
+                if any(x in p for x in ['arroz', 'feijão', 'óleo', 'açúcar', 'macarrão', 'café', 'dona elza', 'kicaldo', 'camil']): return "Mercearia"
+                if any(x in p for x in ['carne', 'frango', 'bife', 'picanha', 'filé', 'linguiça']): return "Açougue"
                 if any(x in p for x in ['leite', 'queijo', 'iogurte', 'manteiga', 'requeijão']): return "Laticínios"
-                if any(x in p for x in ['cerveja', 'suco', 'refrigerante', 'água', 'coca']): return "Bebidas"
+                if any(x in p for x in ['cerveja', 'suco', 'refrigerante', 'água', 'coca', 'original', 'açúcar']): return "Bebidas"
                 if any(x in p for x in ['fralda', 'sabão', 'detergente', 'omo', 'papel']): return "Limpeza"
                 return "Outros"
             
@@ -127,3 +152,4 @@ if not df.empty:
                         st.markdown('</div>', unsafe_allow_html=True)
 else:
     st.warning("🤖 Aguardando conexão com o coletor...")
+
